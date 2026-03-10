@@ -1,15 +1,18 @@
 /**
- * PetCam — camera.js v3
- * Fixes: camera always uses back camera, chime plays on call, flip button works
+ * PetCam — camera.js v4
+ * Fixes: enumerate all cameras (not just front/back), chime on call, proper flip cycling
  */
 
 const PREF_PEER_ID = 'petcam_camera_id';
-const PREF_FACING = 'petcam_facing_mode';
+const PREF_CAM_INDEX = 'petcam_cam_index';
 
 let peer = null;
 let currentCall = null;
 let localStream = null;
-let facingMode = localStorage.getItem(PREF_FACING) || 'environment';
+
+// List of all available camera device IDs
+let cameraDevices = [];
+let currentCamIndex = parseInt(localStorage.getItem(PREF_CAM_INDEX) || '0', 10);
 
 const peerIdDisplay = document.getElementById('peerIdDisplay');
 const statusDot = document.getElementById('statusDot');
@@ -36,47 +39,77 @@ function getOrCreatePeerId() {
     return id;
 }
 
-async function startCamera() {
-    setStatus('', '啟動鏡頭中...');
+// Enumerate all video input devices
+async function getCameraDevices() {
     try {
-        // Try requested facing mode first
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: facingMode }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-                audio: true
-            });
-        } catch (e) {
-            // Fallback: try without "exact" (some old phones don't support exact)
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-                audio: true
-            });
-        }
-    } catch (e) {
-        // Final fallback: any camera
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-                audio: true
-            });
-        } catch (finalErr) {
-            setStatus('error', '無法存取攝影機');
-            peerIdDisplay.textContent = 'Error: ' + finalErr.name;
-            startBtn.disabled = false;
-            return;
-        }
-    }
+        // Need to request any stream first to unlock enumerateDevices labels
+        const temp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        temp.getTracks().forEach(t => t.stop());
+    } catch (e) { }
 
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(d => d.kind === 'videoinput');
+}
+
+async function startCamera() {
+    setStatus('', '啟動鏡頭...');
+    try {
+        // Get all available cameras
+        cameraDevices = await getCameraDevices();
+        console.log('Available cameras:', cameraDevices.map(d => d.label));
+
+        // If saved index is out of bounds, reset to 0
+        if (currentCamIndex >= cameraDevices.length) {
+            currentCamIndex = 0;
+            localStorage.setItem(PREF_CAM_INDEX, '0');
+        }
+
+        await openCamera(currentCamIndex);
+
+    } catch (err) {
+        console.error('Camera start failed:', err);
+        setStatus('error', '無法存取攝影機');
+        peerIdDisplay.textContent = 'Error: ' + err.name;
+        startBtn.disabled = false;
+    }
+}
+
+async function openCamera(index) {
+    // Stop previous stream
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+
+    const deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
+    const constraints = deviceId
+        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
+        : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
+
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localVideo.srcObject = localStream;
     localVideo.style.display = 'block';
     flipBtn.classList.remove('hidden');
 
-    requestWakeLock();
-    initPeer();
+    // Update flip icon tooltip with count
+    if (cameraDevices.length > 1) {
+        flipBtn.title = `鏡頭 ${index + 1} / ${cameraDevices.length}`;
+    }
+
+    // Replace video track in active call (hot-swap without reconnect)
+    if (currentCall && currentCall.peerConnection) {
+        const newTrack = localStream.getVideoTracks()[0];
+        const sender = currentCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender && newTrack) {
+            sender.replaceTrack(newTrack).catch(e => console.warn('replaceTrack failed:', e));
+        }
+    }
+
+    if (!peer) {
+        requestWakeLock();
+        initPeer();
+    }
 }
 
 function initPeer() {
-    setStatus('', '連線伺服器...');
+    setStatus('', '連線中...');
     const cameraId = getOrCreatePeerId();
     peerIdDisplay.textContent = cameraId;
 
@@ -91,18 +124,15 @@ function initPeer() {
         if (currentCall) currentCall.close();
         currentCall = call;
 
-        // Answer with camera stream
         call.answer(localStream);
 
-        // Play chime IMMEDIATELY when call arrives
+        // Play chime immediately
         chimeAudio.currentTime = 0;
         chimeAudio.play().catch(() => { });
 
-        // Enter blackout mode
         document.body.classList.add('monitoring');
         setStatus('online', '觀看中');
 
-        // Receive viewer's audio (walkie-talkie)
         call.on('stream', remoteStream => {
             remoteAudio.srcObject = remoteStream;
             remoteAudio.muted = false;
@@ -115,8 +145,7 @@ function initPeer() {
             setStatus('online', '等待觀看端連線');
         });
 
-        call.on('error', err => {
-            console.error('Call error:', err);
+        call.on('error', () => {
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
         });
@@ -128,9 +157,7 @@ function initPeer() {
     });
 
     peer.on('error', err => {
-        console.error('Peer error:', err);
         if (err.type === 'unavailable-id') {
-            // ID conflict — generate new one
             localStorage.removeItem(PREF_PEER_ID);
             peer.destroy();
             initPeer();
@@ -140,34 +167,21 @@ function initPeer() {
     });
 }
 
-// ── FLIP CAMERA ──
+// ── FLIP: cycle through all cameras ──
 async function flipCamera() {
-    facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    localStorage.setItem(PREF_FACING, facingMode);
+    if (cameraDevices.length <= 1) {
+        setStatus('error', '此裝置只有一個鏡頭');
+        setTimeout(() => setStatus('online', '等待觀看端連線'), 2000);
+        return;
+    }
 
-    // Stop existing tracks
-    if (localStream) localStream.getTracks().forEach(t => t.stop());
+    currentCamIndex = (currentCamIndex + 1) % cameraDevices.length;
+    localStorage.setItem(PREF_CAM_INDEX, String(currentCamIndex));
 
     try {
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-            audio: true
-        });
-
-        localVideo.srcObject = newStream;
-        localStream = newStream;
-
-        // Replace video track in active call
-        if (currentCall && currentCall.peerConnection) {
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            const sender = currentCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (sender && newVideoTrack) sender.replaceTrack(newVideoTrack);
-        }
+        await openCamera(currentCamIndex);
     } catch (e) {
-        console.warn('Flip failed:', e);
-        // Revert
-        facingMode = facingMode === 'environment' ? 'user' : 'environment';
-        localStorage.setItem(PREF_FACING, facingMode);
+        console.warn('Camera flip error:', e);
     }
 }
 
@@ -185,7 +199,7 @@ document.addEventListener('visibilitychange', () => {
 // ── EVENTS ──
 startBtn.addEventListener('click', () => {
     startBtn.disabled = true;
-    // Unlock audio context
+    // Unlock audio context with a silent play
     chimeAudio.volume = 0;
     chimeAudio.play().then(() => { chimeAudio.pause(); chimeAudio.currentTime = 0; chimeAudio.volume = 1; }).catch(() => { });
     remoteAudio.volume = 0;

@@ -1,6 +1,6 @@
 /**
- * PetCam — viewer.js v4
- * All bugs fixed: back button, switch button, SDP video negotiation, autoplay
+ * PetCam — viewer.js v5
+ * Bugfixes: back+switch buttons always work, no confirm() dialog, SDP dummy video track
  */
 
 const PREF_CAMERA_ID = 'petcam_target_id';
@@ -15,6 +15,21 @@ const connectBtn = document.getElementById('connectButton');
 const savedId = localStorage.getItem(PREF_CAMERA_ID);
 if (savedId && cameraInput) cameraInput.value = savedId;
 
+// Wire up BACK and SWITCH buttons right away (they always work, regardless of viewer state)
+document.getElementById('backButton').addEventListener('click', function () {
+    window.location.href = 'index.html';
+});
+
+document.getElementById('switchIdButton').addEventListener('click', function () {
+    // Clear saved ID and return to setup screen without reloading
+    localStorage.removeItem(PREF_CAMERA_ID);
+    // Show setup, hide viewer
+    mainViewer.style.display = 'none';
+    setupScreen.style.display = 'flex';
+    cameraInput.value = '';
+    cameraInput.focus();
+});
+
 connectBtn.addEventListener('click', function () {
     let id = cameraInput.value.trim().toUpperCase();
     if (!id) { alert('請輸入攝影機 ID'); return; }
@@ -28,7 +43,7 @@ connectBtn.addEventListener('click', function () {
     startViewer(id);
 });
 
-// ─── DUMMY VIDEO TRACK (critical for SDP m=video negotiation) ─
+// ─── DUMMY VIDEO TRACK (ensures SDP includes m=video) ─────────
 function makeDummyVideoTrack() {
     try {
         const c = document.createElement('canvas');
@@ -41,7 +56,6 @@ function makeDummyVideoTrack() {
 
 // ─── MAIN VIEWER MODE ─────────────────────────────────────────
 async function startViewer(cameraId) {
-    // Grab elements (now visible)
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
     const remoteVideo = document.getElementById('remoteVideo');
@@ -50,8 +64,6 @@ async function startViewer(cameraId) {
     const spinner = document.getElementById('loadingSpinner');
     const talkBtn = document.getElementById('talkButton');
     const talkLabel = document.getElementById('talkLabel');
-    const backButton = document.getElementById('backButton');
-    const switchButton = document.getElementById('switchIdButton');
 
     let localStream = new MediaStream();
     let peer = null;
@@ -63,49 +75,33 @@ async function startViewer(cameraId) {
         if (overlayText !== undefined) {
             overlay.style.display = 'flex';
             overlayMsg.textContent = overlayText;
-            spinner.style.display = cls === 'error' ? 'none' : 'block';
+            spinner.style.display = (cls === 'error') ? 'none' : 'block';
         } else {
             overlay.style.display = 'none';
         }
     }
 
-    // ─── Back button ───────────────────────────────────────────
-    backButton.addEventListener('click', function () {
-        if (peer) { try { peer.destroy(); } catch (e) { } }
-        window.location.href = 'index.html';
-    });
-
-    // ─── Switch ID button ──────────────────────────────────────
-    switchButton.addEventListener('click', function () {
-        if (confirm('切換攝影機 ID？')) {
-            localStorage.removeItem(PREF_CAMERA_ID);
-            if (peer) { try { peer.destroy(); } catch (e) { } }
-            window.location.reload();
-        }
-    });
-
     // ─── Step 1: Build outgoing stream ─────────────────────────
-    setStatus('', '準備中...', '請求麥克風權限...');
+    setStatus('', '準備中...', '請求麥克風...');
 
-    // Add dummy video (critical for SDP to include m=video)
     const dv = makeDummyVideoTrack();
     if (dv) localStream.addTrack(dv);
 
-    // Mic (muted by default — push-to-talk)
     try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         const audioTrack = mic.getAudioTracks()[0];
         if (audioTrack) {
-            audioTrack.enabled = false;
+            audioTrack.enabled = false; // muted until push-to-talk
             localStream.addTrack(audioTrack);
         }
     } catch (e) {
         console.warn('Mic denied:', e);
-        if (talkBtn) { talkBtn.disabled = true; talkLabel.textContent = '麥克風未授權'; }
+        talkBtn.disabled = true;
+        talkLabel.textContent = '麥克風未授權';
     }
 
     // ─── Step 2: PeerJS ────────────────────────────────────────
-    setStatus('', '連線中...', '連接信令伺服器...');
+    setStatus('', '連線中...', '連接伺服器...');
     peer = new Peer();
 
     peer.on('open', function () {
@@ -114,9 +110,9 @@ async function startViewer(cameraId) {
 
     peer.on('error', function (err) {
         if (err.type === 'peer-unavailable') {
-            setStatus('error', '找不到攝影機', '攝影機未開機\n\n點擊畫面重試');
+            setStatus('error', '找不到攝影機', '攝影機未開機\n點擊畫面重試');
         } else {
-            setStatus('error', '連線錯誤', '錯誤: ' + err.type + '\n\n點擊畫面重試');
+            setStatus('error', '連線錯誤', '錯誤: ' + err.type + '\n點擊畫面重試');
         }
         overlay.onclick = callCamera;
     });
@@ -133,7 +129,7 @@ async function startViewer(cameraId) {
 
         currentCall = peer.call(cameraId, localStream);
         if (!currentCall) {
-            setStatus('error', '呼叫失敗', '無法建立連線\n\n點擊畫面重試');
+            setStatus('error', '呼叫失敗', '無法建立連線\n點擊畫面重試');
             overlay.onclick = callCamera;
             return;
         }
@@ -143,23 +139,22 @@ async function startViewer(cameraId) {
             remoteVideo.muted = true;
 
             remoteVideo.play().catch(function (e) {
-                console.warn('play failed:', e);
+                console.warn('play() failed:', e);
             });
 
-            // Unmute to hear camera audio
+            // Unmute to hear camera audio after brief delay
             setTimeout(function () { remoteVideo.muted = false; }, 600);
 
             setStatus('online', '已連線');
         });
 
         currentCall.on('close', function () {
-            setStatus('error', '已斷線', '連線中斷\n\n點擊畫面重試');
+            setStatus('error', '已斷線', '連線中斷\n點擊畫面重試');
             remoteVideo.srcObject = null;
             overlay.onclick = callCamera;
         });
 
-        currentCall.on('error', function (err) {
-            console.error('Call error:', err);
+        currentCall.on('error', function () {
             setStatus('error', '通話錯誤', '點擊畫面重試');
             overlay.onclick = callCamera;
         });
@@ -170,21 +165,17 @@ async function startViewer(cameraId) {
         if (e.type === 'touchstart') e.preventDefault();
         localStream.getAudioTracks().forEach(t => t.enabled = true);
         talkBtn.classList.add('recording');
-        talkBtn.setAttribute('aria-pressed', 'true');
         talkLabel.textContent = '放開結束';
     }
     function stopTalking(e) {
         if (e && e.type === 'touchend') e.preventDefault();
         localStream.getAudioTracks().forEach(t => t.enabled = false);
         talkBtn.classList.remove('recording');
-        talkBtn.setAttribute('aria-pressed', 'false');
         talkLabel.textContent = '按住說話';
     }
 
-    if (talkBtn) {
-        talkBtn.addEventListener('mousedown', startTalking);
-        talkBtn.addEventListener('touchstart', startTalking, { passive: false });
-    }
+    talkBtn.addEventListener('mousedown', startTalking);
+    talkBtn.addEventListener('touchstart', startTalking, { passive: false });
     window.addEventListener('mouseup', stopTalking);
     window.addEventListener('touchend', stopTalking, { passive: false });
     window.addEventListener('touchcancel', stopTalking);
