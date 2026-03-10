@@ -44,6 +44,181 @@ if (discordWebhookInput) {
             clearTimeout(webhookSaveTimer);
             webhookSaveTimer = setTimeout(function () { webhookSavedStatus.style.opacity = '0'; }, 2000);
         }
+
+        var guardModeToggle = document.getElementById('guardModeToggle');
+        var guardStatusDisplay = document.getElementById('guardStatusDisplay');
+        var isGuardMode = localStorage.getItem('petcam_guard_mode') === 'true';
+
+        if (guardModeToggle) {
+            guardModeToggle.checked = isGuardMode;
+            guardModeToggle.addEventListener('change', function () {
+                isGuardMode = this.checked;
+                localStorage.setItem('petcam_guard_mode', isGuardMode);
+                if (guardStatusDisplay) {
+                    guardStatusDisplay.style.display = isGuardMode ? 'block' : 'none';
+                    if (isGuardMode && detectionInterval) {
+                        guardStatusDisplay.textContent = '🟢 警衛模式運作中：正在背景偵測動靜與聲音...';
+                        guardStatusDisplay.style.color = '#22c55e';
+                    } else if (isGuardMode) {
+                        guardStatusDisplay.textContent = '🟡 警衛模式已就緒，啟動攝影機後開始偵測。';
+                        guardStatusDisplay.style.color = '#facc15';
+                    }
+                }
+                if (isGuardMode && localStream) {
+                    startDetection(localStream);
+                } else {
+                    stopDetection();
+                }
+            });
+            // Init display
+            if (isGuardMode && guardStatusDisplay) guardStatusDisplay.style.display = 'block';
+        }
+
+        // Detection logic
+        var audioContext = null;
+        var analyser = null;
+        var dataArray = null;
+        var motionCanvas = null;
+        var motionCtx = null;
+        var lastImageData = null;
+
+        var detectionInterval = null;
+        var audioRAF = null;
+        var lastAlertTime = 0;
+        var COOLDOWN_MS = 30000; // 30 seconds cooldown between alerts
+
+        function startDetection(stream) {
+            if (!isGuardMode || detectionInterval) return;
+
+            // 1. Audio Setup
+            try {
+                var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioContext = new AudioContextClass();
+                    var source = audioContext.createMediaStreamSource(stream);
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    source.connect(analyser);
+                    dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    checkAudio();
+                }
+            } catch (e) { console.error('Audio detection setup failed:', e); }
+
+            // 2. Motion Setup
+            if (!motionCanvas) {
+                motionCanvas = document.createElement('canvas');
+                motionCanvas.width = 64;
+                motionCanvas.height = 48; // downscale for perf
+                motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
+            }
+
+            lastImageData = null;
+            detectionInterval = setInterval(checkMotion, 1000); // Check every 1s
+            if (guardStatusDisplay) {
+                guardStatusDisplay.textContent = '🟢 警衛模式運作中：正在背景偵測動靜與聲音...';
+                guardStatusDisplay.style.color = '#22c55e';
+            }
+        }
+
+        function stopDetection() {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+                detectionInterval = null;
+            }
+            if (audioRAF) {
+                cancelAnimationFrame(audioRAF);
+                audioRAF = null;
+            }
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.close().catch(function () { });
+                audioContext = null;
+            }
+            lastImageData = null;
+            if (guardStatusDisplay && isGuardMode) {
+                guardStatusDisplay.textContent = '🟡 警衛模式已就緒，啟動攝影機後開始偵測。';
+                guardStatusDisplay.style.color = '#facc15';
+            }
+        }
+
+        function checkAudio() {
+            if (!analyser || !isGuardMode) return;
+            audioRAF = requestAnimationFrame(checkAudio);
+
+            analyser.getByteFrequencyData(dataArray);
+            var sum = 0;
+            for (var i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            var average = sum / dataArray.length;
+
+            // Threshold for loud noise (e.g. bark/crash)
+            if (average > 60) {
+                triggerAlert('🔊 **偵測到異常聲響！** (音量: ' + Math.round(average) + ')');
+            }
+        }
+
+        function checkMotion() {
+            if (!localVideo || localVideo.videoWidth === 0 || !isGuardMode) return;
+
+            motionCtx.drawImage(localVideo, 0, 0, motionCanvas.width, motionCanvas.height);
+            var currentData = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
+
+            if (lastImageData) {
+                var diffPixels = 0;
+                var totalPixels = currentData.data.length / 4;
+
+                for (var i = 0; i < currentData.data.length; i += 4) {
+                    var rDiff = Math.abs(currentData.data[i] - lastImageData.data[i]);
+                    var gDiff = Math.abs(currentData.data[i + 1] - lastImageData.data[i + 1]);
+                    var bDiff = Math.abs(currentData.data[i + 2] - lastImageData.data[i + 2]);
+
+                    // If pixel color difference is significant
+                    if (rDiff + gDiff + bDiff > 100) {
+                        diffPixels++;
+                    }
+                }
+
+                var diffRatio = diffPixels / totalPixels;
+                if (diffRatio > 0.08) { // 8% of pixels changed
+                    triggerAlert('🏃‍♂️ **偵測到異常動靜！** (變動率: ' + Math.round(diffRatio * 100) + '%)');
+                }
+            }
+
+            lastImageData = currentData;
+        }
+
+        function triggerAlert(message) {
+            if (!isGuardMode) return;
+            var now = Date.now();
+            if (now - lastAlertTime < COOLDOWN_MS) return; // Cooldown active
+
+            var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+            if (!webhookUrl) return; // Only trigger if webhook is configured
+
+            lastAlertTime = now;
+            console.log('ALERT TRIGGERED:', message);
+
+            // Capture high-res screenshot
+            if (!localVideo || !localVideo.videoWidth) {
+                sendDiscordMessage(webhookUrl, message); // Send without image
+                return;
+            }
+
+            try {
+                var fullCanvas = document.createElement('canvas');
+                fullCanvas.width = localVideo.videoWidth;
+                fullCanvas.height = localVideo.videoHeight;
+                var fullCtx = fullCanvas.getContext('2d');
+                fullCtx.drawImage(localVideo, 0, 0);
+
+                fullCanvas.toBlob(function (blob) {
+                    sendDiscordMessage(webhookUrl, message, blob);
+                }, 'image/jpeg', 0.85);
+            } catch (e) {
+                console.error('Alert screenshot error:', e);
+                sendDiscordMessage(webhookUrl, message); // Send without image as fallback
+            }
+        }
     });
 }
 
@@ -112,7 +287,13 @@ function startCamera() {
 }
 
 function openCamera(index) {
-    if (localStream) localStream.getTracks().forEach(function (t) { t.stop(); });
+    if (localStream) {
+        stopDetection();
+        var tracks = localStream.getTracks();
+        for (var i = 0; i < tracks.length; i++) {
+            tracks[i].stop();
+        }
+    }
 
     var deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
     var constraints = deviceId
@@ -123,7 +304,11 @@ function openCamera(index) {
         .then(function (stream) {
             localStream = stream;
             localVideo.srcObject = stream;
-
+            localVideo.onloadedmetadata = function () {
+                localVideo.play();
+                initPeer();
+                if (isGuardMode) startDetection(stream);
+            };
             // Switch to live view
             setupScreen.style.display = 'none';
             liveView.style.display = 'flex';
