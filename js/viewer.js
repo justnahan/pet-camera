@@ -82,6 +82,7 @@ function startViewer(cameraId) {
         .then(function () {
             setStatus('', '連線中...', '連接伺服器...');
             peer = new Peer();
+            window._viewerPeer = peer;
             peer.on('open', function () { callCamera(); });
             peer.on('error', function (err) {
                 if (err.type === 'peer-unavailable') {

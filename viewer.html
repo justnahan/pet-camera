@@ -431,14 +431,13 @@
                 </svg>
                 返回首頁
             </button>
-            <button class="nav-btn" type="button"
-                onclick="localStorage.removeItem('petcam_target_id');window.location.reload()">
+            <button class="nav-btn" type="button" id="flipCamBtn" onclick="sendFlipCommand()">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
                         d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                 </svg>
-                換攝影機
+                切換鏡頭
             </button>
         </div>
 
@@ -458,6 +457,19 @@
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/viewer.js"></script>
     <script>
+        function sendFlipCommand() {
+            var camId = localStorage.getItem('petcam_target_id');
+            if (!camId || !window._viewerPeer) {
+                alert('尚未連線到攝影機');
+                return;
+            }
+            var conn = window._viewerPeer.connect(camId);
+            conn.on('open', function () {
+                conn.send('flip');
+            });
+            var btn = document.getElementById('flipCamBtn');
+            if (btn) { btn.style.opacity = '0.5'; setTimeout(function () { btn.style.opacity = '1'; }, 400); }
+        }
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }

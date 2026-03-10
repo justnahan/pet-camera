@@ -120,6 +120,15 @@ function initPeer() {
         setStatus('online', '等待觀看端連線');
     });
 
+    // Listen for data connections (remote flip command from viewer)
+    peer.on('connection', conn => {
+        conn.on('data', data => {
+            if (data === 'flip') {
+                flipCamera();
+            }
+        });
+    });
+
     peer.on('call', call => {
         if (currentCall) currentCall.close();
         currentCall = call;
