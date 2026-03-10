@@ -125,31 +125,36 @@ function startViewer(cameraId) {
         });
     }
 
-    var isMicOn = true;
-    var micToggleBtn = document.getElementById('micToggleBtn');
-    var micLabel = document.getElementById('micLabel');
-    var micIconOn = document.getElementById('micIconOn');
-    var micIconOff = document.getElementById('micIconOff');
+    // Ensure audio is strictly muted by default before adding listeners
+    localStream.getAudioTracks().forEach(function (t) { t.enabled = false; });
 
-    function toggleMic() {
-        isMicOn = !isMicOn;
-        localStream.getAudioTracks().forEach(function (t) { t.enabled = isMicOn; });
+    var isTalking = false;
+    var talkBtn = document.getElementById('talkButton');
+    var talkLabel = document.getElementById('talkLabel');
 
-        if (isMicOn) {
-            micToggleBtn.classList.add('mic-active');
-            micLabel.textContent = '麥克風已開啟';
-            micIconOn.style.display = 'block';
-            micIconOff.style.display = 'none';
-        } else {
-            micToggleBtn.classList.remove('mic-active');
-            micLabel.textContent = '麥克風已關閉';
-            micIconOn.style.display = 'none';
-            micIconOff.style.display = 'block';
-        }
+    function startTalk(e) {
+        if (e.type === 'touchstart') e.preventDefault();
+        isTalking = true;
+        localStream.getAudioTracks().forEach(function (t) { t.enabled = true; });
+        if (talkBtn) talkBtn.classList.add('recording');
+        if (talkLabel) talkLabel.textContent = '放開結束';
     }
 
-    if (micToggleBtn) {
-        micToggleBtn.onclick = toggleMic;
-        // By default mic tracks are created enabled by getUserMedia
+    function stopTalk(e) {
+        if (!isTalking) return;
+        isTalking = false;
+        localStream.getAudioTracks().forEach(function (t) { t.enabled = false; });
+        if (talkBtn) talkBtn.classList.remove('recording');
+        if (talkLabel) talkLabel.textContent = '按住說話';
     }
+
+    if (talkBtn) {
+        talkBtn.addEventListener('mousedown', startTalk);
+        talkBtn.addEventListener('touchstart', startTalk, { passive: false });
+    }
+
+    // Bind to window to catch releases anywhere on screen
+    window.addEventListener('mouseup', stopTalk);
+    window.addEventListener('touchend', stopTalk);
+    window.addEventListener('touchcancel', stopTalk);
 }
