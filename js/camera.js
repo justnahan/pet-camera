@@ -300,14 +300,16 @@ function openCamera(index) {
     var constraints = deviceId
         ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
         : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
-
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function (stream) {
             localStream = stream;
             localVideo.srcObject = stream;
             localVideo.onloadedmetadata = function () {
                 localVideo.play();
-                initPeer();
+                if (!peer) {
+                    requestWakeLock();
+                    initPeer();
+                }
                 if (isGuardMode) startDetection(stream);
             };
             // Switch to live view
@@ -324,11 +326,6 @@ function openCamera(index) {
                         break;
                     }
                 }
-            }
-
-            if (!peer) {
-                requestWakeLock();
-                initPeer();
             }
         })
         .catch(function (err) {

@@ -125,27 +125,31 @@ function startViewer(cameraId) {
         });
     }
 
-    var isTalking = false;
-    function startTalk(e) {
-        if (e.type === 'touchstart') e.preventDefault();
-        isTalking = true;
-        localStream.getAudioTracks().forEach(function (t) { t.enabled = true; });
-        if (talkBtn) talkBtn.classList.add('recording');
-        if (talkLabel) talkLabel.textContent = '放開結束';
+    var isMicOn = true;
+    var micToggleBtn = document.getElementById('micToggleBtn');
+    var micLabel = document.getElementById('micLabel');
+    var micIconOn = document.getElementById('micIconOn');
+    var micIconOff = document.getElementById('micIconOff');
+
+    function toggleMic() {
+        isMicOn = !isMicOn;
+        localStream.getAudioTracks().forEach(function (t) { t.enabled = isMicOn; });
+
+        if (isMicOn) {
+            micToggleBtn.classList.add('mic-active');
+            micLabel.textContent = '麥克風已開啟';
+            micIconOn.style.display = 'block';
+            micIconOff.style.display = 'none';
+        } else {
+            micToggleBtn.classList.remove('mic-active');
+            micLabel.textContent = '麥克風已關閉';
+            micIconOn.style.display = 'none';
+            micIconOff.style.display = 'block';
+        }
     }
-    function stopTalk(e) {
-        if (!isTalking) return; // Only act if we were talking
-        isTalking = false;
-        // Do NOT call preventDefault() here — it kills all button clicks on mobile!
-        localStream.getAudioTracks().forEach(function (t) { t.enabled = false; });
-        if (talkBtn) talkBtn.classList.remove('recording');
-        if (talkLabel) talkLabel.textContent = '按住說話';
+
+    if (micToggleBtn) {
+        micToggleBtn.onclick = toggleMic;
+        // By default mic tracks are created enabled by getUserMedia
     }
-    if (talkBtn) {
-        talkBtn.addEventListener('mousedown', startTalk);
-        talkBtn.addEventListener('touchstart', startTalk, { passive: false });
-    }
-    window.addEventListener('mouseup', stopTalk);
-    window.addEventListener('touchend', stopTalk);
-    window.addEventListener('touchcancel', stopTalk);
 }
