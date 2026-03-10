@@ -356,13 +356,13 @@ function openCamera(index) {
 function initPeer() {
     setStatus('', '連線中...');
     var cameraId = getOrCreatePeerId();
-    if (peerIdDisplay) peerIdDisplay.textContent = cameraId;
+    if (peerIdInput) peerIdInput.value = cameraId;
     if (liveIdDisplay) liveIdDisplay.textContent = cameraId;
 
     peer = new Peer(cameraId);
 
     peer.on('open', function (id) {
-        if (peerIdDisplay) peerIdDisplay.textContent = id;
+        if (peerIdInput) peerIdInput.value = id;
         if (liveIdDisplay) liveIdDisplay.textContent = id;
         setStatus('online', '等待觀看端連線');
 
