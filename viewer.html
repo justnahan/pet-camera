@@ -162,6 +162,70 @@
             background: #000
         }
 
+        /* Pinch-to-zoom */
+        .video-area {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            touch-action: none
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform-origin: center center;
+            transition: transform .05s linear
+        }
+
+        /* Screenshot flash */
+        .flash {
+            position: absolute;
+            inset: 0;
+            background: #fff;
+            opacity: 0;
+            z-index: 30;
+            pointer-events: none
+        }
+
+        .flash.active {
+            animation: flashAnim .3s ease-out
+        }
+
+        @keyframes flashAnim {
+            0% {
+                opacity: .7
+            }
+
+            100% {
+                opacity: 0
+            }
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99;
+            background: rgba(0, 0, 0, .8);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: .85rem;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity .25s;
+            pointer-events: none
+        }
+
+        .toast.show {
+            opacity: 1
+        }
+
         /* Floating top bar — transparent, over the video */
         .top-bar {
             position: absolute;
@@ -391,7 +455,7 @@
 
     <!-- ═══ MAIN VIEWER ═══ -->
     <div id="mainViewer">
-        <!-- Floating top bar (over video) -->
+        <!-- Floating top bar -->
         <div class="top-bar">
             <button class="top-icon" type="button" onclick="window.location.href='index.html'" aria-label="返回">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
@@ -403,25 +467,37 @@
                 <div class="dot" id="statusDot"></div>
                 <span id="statusText">連線中</span>
             </div>
-            <button class="top-icon" type="button" id="flipCamBtn" onclick="sendFlipCommand()" aria-label="切換鏡頭">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-            </button>
+            <div style="display:flex;gap:8px">
+                <button class="top-icon" type="button" onclick="takeScreenshot()" aria-label="截圖">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z" />
+                    </svg>
+                </button>
+                <button class="top-icon" type="button" id="flipCamBtn" onclick="sendFlipCommand()" aria-label="切換鏡頭">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                </button>
+            </div>
         </div>
 
-        <!-- Full-screen video -->
-        <div class="video-area">
+        <!-- Full-screen video with pinch-to-zoom -->
+        <div class="video-area" id="videoArea">
             <video id="remoteVideo" autoplay muted playsinline webkit-playsinline></video>
             <div id="videoOverlay">
                 <div class="spinner" id="loadingSpinner"></div>
                 <div id="overlayMessage">等待攝影機連線...</div>
             </div>
+            <div class="flash" id="flashOverlay"></div>
         </div>
 
-        <!-- Floating talk button (over video bottom) -->
+        <!-- Floating talk button -->
         <div class="bottom-bar">
             <button id="talkButton" type="button">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
@@ -432,21 +508,122 @@
                 <span id="talkLabel">按住說話</span>
             </button>
         </div>
+
+        <div class="toast" id="toast"></div>
     </div>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/viewer.js"></script>
     <script>
+        // ─── Send flip command ───
         function sendFlipCommand() {
             var camId = localStorage.getItem('petcam_target_id');
-            if (!camId || !window._viewerPeer) { return; }
+            if (!camId || !window._viewerPeer) return;
             var conn = window._viewerPeer.connect(camId);
             conn.on('open', function () { conn.send('flip'); });
             var btn = document.getElementById('flipCamBtn');
             if (btn) { btn.style.opacity = '0.5'; setTimeout(function () { btn.style.opacity = '1'; }, 400); }
         }
+
+        // ─── Screenshot ───
+        function takeScreenshot() {
+            var video = document.getElementById('remoteVideo');
+            if (!video || !video.videoWidth) { showToast('尚無影像'); return; }
+            var canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            // Flash effect
+            var flash = document.getElementById('flashOverlay');
+            if (flash) { flash.classList.remove('active'); void flash.offsetWidth; flash.classList.add('active'); }
+            // Download
+            var link = document.createElement('a');
+            var now = new Date();
+            var ts = now.getFullYear() + ('0' + (now.getMonth() + 1)).slice(-2) + ('0' + now.getDate()).slice(-2) + '_' + ('0' + now.getHours()).slice(-2) + ('0' + now.getMinutes()).slice(-2) + ('0' + now.getSeconds()).slice(-2);
+            link.download = 'PetCam_' + ts + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('已儲存截圖');
+        }
+
+        // ─── Toast ───
+        function showToast(msg) {
+            var t = document.getElementById('toast');
+            if (!t) return;
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(function () { t.classList.remove('show'); }, 1800);
+        }
+
+        // ─── Pinch-to-Zoom ───
+        (function () {
+            var area = document.getElementById('videoArea');
+            var video = document.getElementById('remoteVideo');
+            if (!area || !video) return;
+            var scale = 1, lastScale = 1, startDist = 0;
+            var panX = 0, panY = 0, startPanX = 0, startPanY = 0;
+            var midX = 0, midY = 0;
+
+            function getDist(touches) {
+                var dx = touches[0].clientX - touches[1].clientX;
+                var dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            function getMid(touches) {
+                return { x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 };
+            }
+            function applyTransform() {
+                var s = Math.max(1, Math.min(scale, 5));
+                scale = s;
+                video.style.transform = 'scale(' + s + ') translate(' + panX + 'px,' + panY + 'px)';
+            }
+
+            area.addEventListener('touchstart', function (e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    startDist = getDist(e.touches);
+                    lastScale = scale;
+                    var m = getMid(e.touches);
+                    midX = m.x; midY = m.y;
+                    startPanX = panX; startPanY = panY;
+                }
+            }, { passive: false });
+
+            area.addEventListener('touchmove', function (e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    var dist = getDist(e.touches);
+                    scale = lastScale * (dist / startDist);
+                    var m = getMid(e.touches);
+                    panX = startPanX + (m.x - midX) / scale;
+                    panY = startPanY + (m.y - midY) / scale;
+                    applyTransform();
+                }
+            }, { passive: false });
+
+            area.addEventListener('touchend', function (e) {
+                if (e.touches.length < 2) {
+                    if (scale <= 1.05) { scale = 1; panX = 0; panY = 0; applyTransform(); }
+                }
+            });
+
+            // Double-tap to reset zoom
+            var lastTap = 0;
+            area.addEventListener('touchend', function (e) {
+                if (e.touches.length > 0) return;
+                var now = Date.now();
+                if (now - lastTap < 300 && scale > 1) {
+                    scale = 1; panX = 0; panY = 0;
+                    video.style.transition = 'transform .25s ease';
+                    applyTransform();
+                    setTimeout(function () { video.style.transition = 'transform .05s linear'; }, 300);
+                }
+                lastTap = now;
+            });
+        })();
+
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+            window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js'); });
         }
     </script>
 </body>
