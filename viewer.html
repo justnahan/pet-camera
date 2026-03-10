@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>📺 寵物監視器 - 觀看端</title>
+    <meta name="description" content="長輩友善寵物監視器觀看端">
+    <meta name="theme-color" content="#0F172A">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./css/style.css">
+
+    <style>
+        .viewer-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 1rem;
+            position: relative;
+        }
+
+        /* 頂部狀態列 */
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .back-btn {
+            background: transparent;
+            padding: 0.5rem;
+            min-width: auto;
+            color: #94A3B8;
+        }
+
+        .back-btn svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        /* 影片播放區 */
+        .video-wrapper {
+            flex: 1;
+            position: relative;
+            background-color: #000;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            /* 保留完整畫面不裁切 */
+            background-color: #000;
+        }
+
+        /* 載入/斷線提示覆蓋層 */
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 5;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading-spinner {
+            width: 64px;
+            height: 64px;
+            border: 6px solid rgba(255, 255, 255, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1.5rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .overlay-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        /* 底部控制列 - 對講機按鈕 */
+        .controls-bar {
+            padding: 1rem 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        #talkButton {
+            width: 100%;
+            max-width: 500px;
+            height: 120px;
+            /* 超大點擊高度 */
+            border-radius: 60px;
+            font-size: 2rem;
+            box-shadow: 0 8px 0 rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        #talkButton.recording {
+            background-color: var(--danger);
+            transform: translateY(8px);
+            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+            outline: 6px solid rgba(239, 68, 68, 0.4);
+            outline-offset: 4px;
+        }
+
+        .talk-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .control-help {
+            text-align: center;
+            color: #94A3B8;
+            font-size: 1.1rem;
+            margin-top: -0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="app-container">
+
+        <!-- Setup View for entering ID -->
+        <div id="setupView" class="setup-view"
+            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 2rem;">
+            <h1 style="text-align: center; margin-bottom: 0;">設定連線</h1>
+            <p style="color: #94A3B8; text-align: center;">請輸入攝影機畫面上的 6 碼 ID</p>
+
+            <input type="text" id="cameraIdInput" placeholder="PET-XXXX"
+                style="font-size: 2rem; padding: 1rem; width: 90%; max-width: 400px; text-align: center; border-radius: 8px; border: 2px solid #334155; background: #0F172A; color: #F8FAFC; text-transform: uppercase; font-family: monospace; letter-spacing: 2px;"
+                autocomplete="off" />
+
+            <button id="connectButton" class="btn-primary" style="width: 90%; max-width: 400px; font-size: 1.5rem;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor"
+                    style="width: 32px; height: 32px; display: inline-block; vertical-align: middle;">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                </svg>
+                開始觀看
+            </button>
+            <button onclick="window.location.href='index.html'"
+                style="background: transparent; margin-top: 1rem; border: 1px solid #475569; font-size: 1rem; width: auto; padding: 0.5rem 1rem;">
+                返回首頁
+            </button>
+        </div>
+
+        <!-- Main Viewer Area -->
+        <div id="mainViewer" class="viewer-container" style="display: none;">
+            <header class="header-bar">
+                <button class="back-btn" onclick="window.location.href='index.html'" aria-label="返回首頁">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                    </svg>
+                </button>
+                <div class="status-badge" id="statusBadge">
+                    <div class="status-indicator" id="statusDot"></div>
+                    <span id="statusText">正在連線...</span>
+                </div>
+                <button class="back-btn" id="switchIdButton" aria-label="切換 ID"
+                    style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">
+                    切換
+                </button>
+            </header>
+
+            <div class="video-wrapper">
+                <video id="remoteVideo" autoplay muted playsinline webkit-playsinline></video>
+
+                <div class="video-overlay" id="videoOverlay">
+                    <div class="loading-spinner" id="loadingSpinner"></div>
+                    <div class="overlay-text" id="overlayMessage">等待攝影機連線中...</div>
+                </div>
+            </div>
+
+            <div class="controls-bar">
+                <button id="talkButton" aria-pressed="false" class="btn-success">
+                    <svg class="talk-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                    </svg>
+                    <span id="talkLabel">按住 叫貓咪</span>
+                </button>
+            </div>
+            <div class="control-help">⚠️ 講話時請按住按鈕不放，講完鬆開</div>
+        </div>
+    </main>
+
+    <!-- load PeerJS via CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="./js/viewer.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js');
+            });
+        }
+    </script>
+</body>
+
+</html>

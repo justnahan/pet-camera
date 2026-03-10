@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
+:root {
+    /* Accessibility High Contrast Colors */
+    --bg-color: #0F172A; /* Very Dark Blue */
+    --text-color: #F8FAFC; /* Off-white */
+    --primary: #3B82F6; /* Bright Blue */
+    --primary-hover: #60A5FA;
+    --success: #10B981; /* Green */
+    --danger: #EF4444; /* Red */
+    --warning: #F59E0B; /* Yellow/Orange */
+    
+    /* Accessibility Minimums */
+    --min-touch-target: 64px;
+    --border-radius: 16px;
+    
+    /* Contextual Variable */
+    --safe-area-inset-top: env(safe-area-inset-top, 0px);
+    --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: 'Atkinson Hyperlegible', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 20px; /* Base size for accessibility */
+    line-height: 1.5;
+    height: 100vh;
+    height: 100dvh; /* For mobile browsers that hide the address bar */
+    width: 100vw;
+    overflow: hidden; /* Prevent scary unexpected scrolling on a monitor app */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Base Accessibility Classes */
+.hidden {
+    display: none !important;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Shared Button Styles */
+button {
+    font-family: inherit;
+    font-size: 1.25rem; /* ~25px */
+    font-weight: bold;
+    min-height: var(--min-touch-target);
+    min-width: var(--min-touch-target);
+    padding: 1rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    background-color: var(--primary);
+    color: white;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+    user-select: none;
+    touch-action: manipulation; /* Prevent double-tap zoom on buttons */
+}
+
+button:active {
+    transform: scale(0.95);
+    background-color: var(--primary-hover);
+}
+
+button:focus-visible {
+    outline: 4px solid var(--warning);
+    outline-offset: 4px;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-danger { background-color: var(--danger); }
+.btn-success { background-color: var(--success); }
+.btn-warning { background-color: var(--warning); color: #000; }
+
+/* Status Indicators */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #64748B; /* Default gray/offline */
+}
+
+.status-indicator.online { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
+.status-indicator.error { background-color: var(--danger); box-shadow: 0 0 10px var(--danger); }
+
+/* Main Container shared layout */
+.app-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top, 1rem) 1rem env(safe-area-inset-bottom, 1rem) 1rem;
+    height: 100%;
+}

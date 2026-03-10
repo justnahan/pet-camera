@@ -1,0 +1,20 @@
+# Logs
+logs
+*.log
+
+# Dependency directories
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Implementation plan (internal)
+implementation_plan.md
+task.md

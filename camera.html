@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>📷 寵物監視器 - 攝影機端</title>
+    <meta name="description" content="長輩友善寵物監視器攝影端">
+    <meta name="theme-color" content="#0F172A">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./css/style.css">
+
+    <style>
+        .camera-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 2rem;
+            position: relative;
+        }
+
+        /* 正常準備畫面 */
+        .setup-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            width: 100%;
+            z-index: 10;
+        }
+
+        .peer-id-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem 2rem;
+            border-radius: var(--border-radius);
+            margin: 1rem 0;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        .peer-id-label {
+            font-size: 1.25rem;
+            color: #94A3B8;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .peer-id-value {
+            font-size: 2.5rem;
+            /* 大字體 */
+            font-family: monospace;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: var(--primary);
+            user-select: all;
+            /* Easy copy */
+        }
+
+        /* 機密/黑屏畫質 */
+        .monitoring-view {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+        }
+
+        body.is-monitoring .monitoring-view {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        body.is-monitoring .setup-view {
+            display: none;
+        }
+
+        .monitoring-icon {
+            color: var(--danger);
+            width: 120px;
+            height: 120px;
+            margin-bottom: 2rem;
+            animation: pulse 2s infinite;
+        }
+
+        .monitoring-text {
+            color: #475569;
+            /* 故意調暗，避免 OLED 螢幕亮起 */
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* 隱藏本地預覽影片 */
+        #localVideo {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 120px;
+            border-radius: 8px;
+            background: #000;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        body.is-monitoring #localVideo {
+            opacity: 0.1;
+            /* Almost invisible during monitoring */
+        }
+
+        /* Remote Audio (for voice talkback) */
+        #remoteAudio {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <audio id="chimeAudio" src="https://cdn.freesound.org/previews/415/415510_7587184-lq.mp3" preload="auto"></audio>
+    <video id="localVideo" autoplay muted playsinline webkit-playsinline></video>
+    <!-- Audio element for playing voice from the viewer -->
+    <audio id="remoteAudio" autoplay></audio>
+
+    <main class="app-container camera-container">
+
+        <div class="setup-view">
+            <h1>攝影機準備中...</h1>
+            <p>請將手機插上電源，並固定好位置。</p>
+
+            <div class="peer-id-box">
+                <div class="peer-id-label">攝影機專屬 ID</div>
+                <div class="peer-id-value" id="peerIdDisplay">---</div>
+            </div>
+
+            <div class="status-badge" style="margin-top: 1rem;">
+                <div class="status-indicator" id="statusDot"></div>
+                <span id="statusText">等待啟動...</span>
+            </div>
+
+            <button id="startCameraButton" class="btn-success" style="margin-top: 1rem; width: 100%; max-width: 300px;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" style="width: 24px; height: 24px;">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653Z" />
+                </svg>
+                啟動攝影機
+            </button>
+            <p style="font-size: 0.9rem; color: #94A3B8;">請點擊上方按鈕開始接收連線</p>
+
+            <button onclick="window.location.href='index.html'"
+                style="background: transparent; margin-top: 1rem; border: 1px solid #475569; font-size: 1rem; width: auto; padding: 0.5rem 1rem;">
+                返回首頁
+            </button>
+        </div>
+
+        <div class="monitoring-view">
+            <!-- Dimming the screen to black -->
+            <svg class="monitoring-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm14.024-.983a1.125 1.125 0 0 1 0 1.966l-5.603 3.113A1.125 1.125 0 0 1 9 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113Z"
+                    clip-rule="evenodd" />
+            </svg>
+            <div class="monitoring-text">觀看中...</div>
+        </div>
+
+    </main>
+
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="./js/camera.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js');
+            });
+        }
+    </script>
+</body>
+
+</html>
