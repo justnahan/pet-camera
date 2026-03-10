@@ -1,204 +1,173 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>📷 寵物監視器 - 攝影機端</title>
-    <meta name="description" content="長輩友善寵物監視器攝影端">
-    <meta name="theme-color" content="#0F172A">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>PetCam — 攝影機</title>
+    <meta name="theme-color" content="#0a0e1a">
     <link rel="manifest" href="./manifest.json">
-    <link rel="stylesheet" href="./css/style.css">
-
     <style>
-        .camera-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            gap: 2rem;
-            position: relative;
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+        :root{
+            --bg:#0a0e1a;--surface:#131929;--surface2:#1e2d45;
+            --primary:#3b82f6;--primary-d:#2563eb;
+            --green:#10b981;--red:#ef4444;--amber:#f59e0b;
+            --text:#f1f5f9;--muted:#64748b;
+            --radius:20px;
         }
+        html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif}
+        body{display:flex;flex-direction:column;align-items:center;justify-content:center}
 
-        /* 正常準備畫面 */
-        .setup-view {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 2rem;
-            width: 100%;
-            z-index: 10;
+        /* ── SETUP SCREEN ── */
+        #setupScreen{
+            display:flex;flex-direction:column;align-items:center;justify-content:center;
+            height:100dvh;width:100%;padding:2rem 1.5rem;gap:1.5rem;text-align:center;
         }
-
-        .peer-id-box {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 1.5rem 2rem;
-            border-radius: var(--border-radius);
-            margin: 1rem 0;
-            width: 90%;
-            max-width: 400px;
+        .logo-ring{
+            width:100px;height:100px;border-radius:50%;
+            background:linear-gradient(135deg,var(--primary),#8b5cf6);
+            display:flex;align-items:center;justify-content:center;
+            box-shadow:0 0 40px rgba(59,130,246,.4);
         }
+        .logo-ring svg{width:52px;height:52px;color:#fff}
+        #setupScreen h1{font-size:1.8rem;font-weight:900;letter-spacing:-0.5px}
+        #setupScreen p{color:var(--muted);font-size:1rem;max-width:280px}
 
-        .peer-id-label {
-            font-size: 1.25rem;
-            color: #94A3B8;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        .id-badge{
+            background:var(--surface);border-radius:var(--radius);
+            padding:1.25rem 2rem;width:100%;max-width:340px;
+            border:1px solid var(--surface2);
         }
+        .id-label{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+        .id-value{font-size:2.2rem;font-family:'Courier New',monospace;font-weight:700;letter-spacing:.15em;color:var(--primary);user-select:all}
 
-        .peer-id-value {
-            font-size: 2.5rem;
-            /* 大字體 */
-            font-family: monospace;
-            font-weight: bold;
-            letter-spacing: 4px;
-            color: var(--primary);
-            user-select: all;
-            /* Easy copy */
+        .status-row{display:flex;align-items:center;gap:.6rem;font-size:.95rem;color:var(--muted)}
+        .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
+        .dot.online{background:var(--green);box-shadow:0 0 8px var(--green)}
+        .dot.error{background:var(--red);box-shadow:0 0 8px var(--red)}
+
+        .start-btn{
+            width:100%;max-width:340px;height:72px;border-radius:36px;
+            background:linear-gradient(135deg,var(--green),#059669);
+            border:none;color:#fff;font-size:1.2rem;font-weight:700;
+            display:flex;align-items:center;justify-content:center;gap:.75rem;
+            cursor:pointer;box-shadow:0 8px 24px rgba(16,185,129,.35);
+            transition:transform .15s,box-shadow .15s;
         }
+        .start-btn:active{transform:scale(.97);box-shadow:0 4px 12px rgba(16,185,129,.3)}
+        .start-btn svg{width:28px;height:28px}
+        .start-btn:disabled{opacity:.5;cursor:not-allowed}
 
-        /* 機密/黑屏畫質 */
-        .monitoring-view {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #000;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 1s ease;
+        .icon-btn{
+            background:transparent;border:1px solid var(--surface2);
+            color:var(--muted);border-radius:12px;
+            padding:.6rem 1rem;font-size:.9rem;font-weight:600;
+            cursor:pointer;display:flex;align-items:center;gap:.5rem;
         }
+        .icon-btn svg{width:18px;height:18px}
 
-        body.is-monitoring .monitoring-view {
-            opacity: 1;
-            pointer-events: auto;
+        /* ── MONITORING (BLACKOUT) SCREEN ── */
+        #monitoringScreen{
+            display:none;position:fixed;inset:0;background:#000;z-index:200;
+            flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;
         }
+        body.monitoring #monitoringScreen{display:flex}
+        body.monitoring #setupScreen{display:none}
 
-        body.is-monitoring .setup-view {
-            display: none;
+        .pulse-dot{
+            width:64px;height:64px;border-radius:50%;background:var(--red);
+            animation:pulse 2s ease-in-out infinite;
         }
+        @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 20px rgba(239,68,68,0)}}
+        .monitoring-label{color:#374151;font-size:1rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 
-        .monitoring-icon {
-            color: var(--danger);
-            width: 120px;
-            height: 120px;
-            margin-bottom: 2rem;
-            animation: pulse 2s infinite;
+        /* Flip camera overlay button */
+        #flipBtn{
+            position:fixed;bottom:2rem;right:1.5rem;z-index:100;
+            width:56px;height:56px;border-radius:50%;
+            background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
+            border:1px solid rgba(255,255,255,.15);
+            color:#fff;cursor:pointer;display:none;
+            align-items:center;justify-content:center;
         }
+        #flipBtn svg{width:26px;height:26px}
+        body:not(.monitoring) #flipBtn{display:flex}
+        /* only show after camera started */
+        #flipBtn.hidden{display:none!important}
 
-        .monitoring-text {
-            color: #475569;
-            /* 故意調暗，避免 OLED 螢幕亮起 */
-            font-size: 2rem;
-            font-weight: bold;
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.3;
-            }
-
-            100% {
-                opacity: 1;
-            }
-        }
-
-        /* 隱藏本地預覽影片 */
-        #localVideo {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 120px;
-            border-radius: 8px;
-            background: #000;
-            z-index: 50;
-            pointer-events: none;
-        }
-
-        body.is-monitoring #localVideo {
-            opacity: 0.1;
-            /* Almost invisible during monitoring */
-        }
-
-        /* Remote Audio (for voice talkback) */
-        #remoteAudio {
-            display: none;
+        /* Local video preview */
+        #localVideo{
+            position:fixed;bottom:2rem;left:1.5rem;
+            width:96px;height:128px;border-radius:12px;
+            object-fit:cover;background:#000;
+            border:2px solid var(--surface2);z-index:50;
+            display:none;
         }
     </style>
 </head>
-
 <body>
-    <audio id="chimeAudio" src="https://cdn.freesound.org/previews/415/415510_7587184-lq.mp3" preload="auto"></audio>
+    <audio id="chimeAudio" preload="auto">
+        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="remoteAudio" autoplay style="display:none"></audio>
     <video id="localVideo" autoplay muted playsinline webkit-playsinline></video>
-    <!-- Audio element for playing voice from the viewer -->
-    <audio id="remoteAudio" autoplay></audio>
 
-    <main class="app-container camera-container">
-
-        <div class="setup-view">
-            <h1>攝影機準備中...</h1>
-            <p>請將手機插上電源，並固定好位置。</p>
-
-            <div class="peer-id-box">
-                <div class="peer-id-label">攝影機專屬 ID</div>
-                <div class="peer-id-value" id="peerIdDisplay">---</div>
-            </div>
-
-            <div class="status-badge" style="margin-top: 1rem;">
-                <div class="status-indicator" id="statusDot"></div>
-                <span id="statusText">等待啟動...</span>
-            </div>
-
-            <button id="startCameraButton" class="btn-success" style="margin-top: 1rem; width: 100%; max-width: 300px;">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                    stroke="currentColor" style="width: 24px; height: 24px;">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653Z" />
-                </svg>
-                啟動攝影機
-            </button>
-            <p style="font-size: 0.9rem; color: #94A3B8;">請點擊上方按鈕開始接收連線</p>
-
-            <button onclick="window.location.href='index.html'"
-                style="background: transparent; margin-top: 1rem; border: 1px solid #475569; font-size: 1rem; width: auto; padding: 0.5rem 1rem;">
-                返回首頁
-            </button>
-        </div>
-
-        <div class="monitoring-view">
-            <!-- Dimming the screen to black -->
-            <svg class="monitoring-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                <path fill-rule="evenodd"
-                    d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm14.024-.983a1.125 1.125 0 0 1 0 1.966l-5.603 3.113A1.125 1.125 0 0 1 9 15.113V8.887c0-.857.921-1.4 1.671-.983l5.603 3.113Z"
-                    clip-rule="evenodd" />
+    <!-- ── SETUP SCREEN ── -->
+    <div id="setupScreen">
+        <div class="logo-ring">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9A2.25 2.25 0 0 0 4.5 18.75Z" />
             </svg>
-            <div class="monitoring-text">觀看中...</div>
         </div>
 
-    </main>
+        <div>
+            <h1>攝影機</h1>
+            <p style="margin-top:.5rem">固定手機位置，按下啟動開始監控</p>
+        </div>
+
+        <div class="id-badge">
+            <div class="id-label">攝影機 ID</div>
+            <div class="id-value" id="peerIdDisplay">---</div>
+        </div>
+
+        <div class="status-row">
+            <div class="dot" id="statusDot"></div>
+            <span id="statusText">等待啟動...</span>
+        </div>
+
+        <button class="start-btn" id="startCameraButton">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653Z" />
+            </svg>
+            啟動攝影機
+        </button>
+
+        <button class="icon-btn" onclick="window.location.href='index.html'">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+            返回首頁
+        </button>
+    </div>
+
+    <!-- ── MONITORING (BLACKOUT) SCREEN ── -->
+    <div id="monitoringScreen">
+        <div class="pulse-dot"></div>
+        <div class="monitoring-label">觀看中</div>
+    </div>
+
+    <!-- Flip camera button (visible on setup screen only) -->
+    <button id="flipBtn" class="hidden" aria-label="翻轉鏡頭">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+    </button>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/camera.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js');
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }
     </script>
 </body>
-
 </html>

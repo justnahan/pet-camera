@@ -1,182 +1,197 @@
+/**
+ * PetCam — camera.js v3
+ * Fixes: camera always uses back camera, chime plays on call, flip button works
+ */
+
 const PREF_PEER_ID = 'petcam_camera_id';
+const PREF_FACING = 'petcam_facing_mode';
+
 let peer = null;
 let currentCall = null;
 let localStream = null;
+let facingMode = localStorage.getItem(PREF_FACING) || 'environment';
 
-// UI Elements
 const peerIdDisplay = document.getElementById('peerIdDisplay');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const localVideo = document.getElementById('localVideo');
 const remoteAudio = document.getElementById('remoteAudio');
 const chimeAudio = document.getElementById('chimeAudio');
+const startBtn = document.getElementById('startCameraButton');
+const flipBtn = document.getElementById('flipBtn');
 
-function updateStatus(status, text, isMonitoring = false) {
-    statusDot.className = `status-indicator ${status}`;
-    statusText.innerText = text;
-
-    if (isMonitoring) {
-        document.body.classList.add('is-monitoring');
-    } else {
-        document.body.classList.remove('is-monitoring');
-    }
+function setStatus(cls, text) {
+    statusDot.className = 'dot ' + cls;
+    statusText.textContent = text;
 }
 
-// Generate an easy-to-read unique ID or retrieve existing one
 function getOrCreatePeerId() {
     let id = localStorage.getItem(PREF_PEER_ID);
     if (!id) {
-        // Generate a 6-character uppercase alphanumeric ID
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded confusing chars like O,0,1,I
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         id = 'PET-';
-        for (let i = 0; i < 4; i++) {
-            id += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
+        for (let i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
         localStorage.setItem(PREF_PEER_ID, id);
     }
     return id;
 }
 
-// Initialize Camera
-async function initCamera() {
-    updateStatus('error', '正在存取攝影機...');
+async function startCamera() {
+    setStatus('', '啟動鏡頭中...');
     try {
-        // Try getting the back camera with highly compatible minimal resolution for old phones
-        // Older Android devices often fail to hardware encode WebRTC video if resolution is too high or unpredictable, sending a black screen instead.
+        // Try requested facing mode first
         try {
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: 'environment',
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    frameRate: { ideal: 15 }
-                },
-                audio: true // Start pulling mic
+                video: { facingMode: { exact: facingMode }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+                audio: true
             });
-        } catch (initialErr) {
-            console.warn('Back camera failed, trying ANY camera...', initialErr);
-            // Fallback for older devices that don't recognize "environment" or have other issues
+        } catch (e) {
+            // Fallback: try without "exact" (some old phones don't support exact)
             localStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    frameRate: { ideal: 15 }
-                },
+                video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
                 audio: true
             });
         }
-
-        localVideo.srcObject = localStream;
-
-        lockWakeState();
-        initPeer();
-
-    } catch (err) {
-        console.error('Failed to access camera completely:', err);
-        updateStatus('error', '無法存取攝影機，請確認權限或硬體');
-        peerIdDisplay.innerText = "Error: " + err.name;
+    } catch (e) {
+        // Final fallback: any camera
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+                audio: true
+            });
+        } catch (finalErr) {
+            setStatus('error', '無法存取攝影機');
+            peerIdDisplay.textContent = 'Error: ' + finalErr.name;
+            startBtn.disabled = false;
+            return;
+        }
     }
+
+    localVideo.srcObject = localStream;
+    localVideo.style.display = 'block';
+    flipBtn.classList.remove('hidden');
+
+    requestWakeLock();
+    initPeer();
 }
 
-// Initialize PeerJS
 function initPeer() {
-    updateStatus('', '連接伺服器中...');
+    setStatus('', '連線伺服器...');
     const cameraId = getOrCreatePeerId();
+    peerIdDisplay.textContent = cameraId;
 
-    // Using free public PeerJS server
     peer = new Peer(cameraId);
 
-    peer.on('open', (id) => {
-        peerIdDisplay.innerText = id;
-        updateStatus('online', '系統備妥，等待連線');
+    peer.on('open', id => {
+        peerIdDisplay.textContent = id;
+        setStatus('online', '等待觀看端連線');
     });
 
-    peer.on('call', (call) => {
-        console.log('Incoming call...', call.peer);
-
-        // Disconnect existing call if any
-        if (currentCall) {
-            currentCall.close();
-        }
-
+    peer.on('call', call => {
+        if (currentCall) currentCall.close();
         currentCall = call;
 
-        // Answer automatically with our video/audio stream
+        // Answer with camera stream
         call.answer(localStream);
 
-        // When viewer sends their audio stream (Walkie-Talkie)
-        call.on('stream', (remoteStream) => {
+        // Play chime IMMEDIATELY when call arrives
+        chimeAudio.currentTime = 0;
+        chimeAudio.play().catch(() => { });
+
+        // Enter blackout mode
+        document.body.classList.add('monitoring');
+        setStatus('online', '觀看中');
+
+        // Receive viewer's audio (walkie-talkie)
+        call.on('stream', remoteStream => {
             remoteAudio.srcObject = remoteStream;
-            // Unmute remote audio naturally
             remoteAudio.muted = false;
         });
 
         call.on('close', () => {
-            console.log('Call ended');
             currentCall = null;
             remoteAudio.srcObject = null;
-            updateStatus('online', '系統備妥，等待連線');
+            document.body.classList.remove('monitoring');
+            setStatus('online', '等待觀看端連線');
         });
 
-        // Play Chime and go Blackout Mode
-        if (chimeAudio) chimeAudio.play().catch(e => console.log(e));
-        updateStatus('online', '連線中', true);
+        call.on('error', err => {
+            console.error('Call error:', err);
+            document.body.classList.remove('monitoring');
+            setStatus('online', '等待觀看端連線');
+        });
     });
 
     peer.on('disconnected', () => {
-        updateStatus('error', '與伺服器斷線，重連中...');
+        setStatus('error', '伺服器斷線，重連中...');
         peer.reconnect();
     });
 
-    peer.on('error', (err) => {
+    peer.on('error', err => {
         console.error('Peer error:', err);
-        updateStatus('error', '發生錯誤: ' + err.type);
+        if (err.type === 'unavailable-id') {
+            // ID conflict — generate new one
+            localStorage.removeItem(PREF_PEER_ID);
+            peer.destroy();
+            initPeer();
+        } else {
+            setStatus('error', '錯誤: ' + err.type);
+        }
     });
 }
 
-// Keep screen awake API
-let wakeLock = null;
-async function lockWakeState() {
-    if ('wakeLock' in navigator) {
-        try {
-            wakeLock = await navigator.wakeLock.request('screen');
-            wakeLock.addEventListener('release', () => {
-                console.log('Wake Lock was released');
-            });
-            console.log('Wake Lock is active');
-        } catch (err) {
-            console.error('Wake Lock API err:', err);
+// ── FLIP CAMERA ──
+async function flipCamera() {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    localStorage.setItem(PREF_FACING, facingMode);
+
+    // Stop existing tracks
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
+
+    try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+            audio: true
+        });
+
+        localVideo.srcObject = newStream;
+        localStream = newStream;
+
+        // Replace video track in active call
+        if (currentCall && currentCall.peerConnection) {
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            const sender = currentCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (sender && newVideoTrack) sender.replaceTrack(newVideoTrack);
         }
+    } catch (e) {
+        console.warn('Flip failed:', e);
+        // Revert
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        localStorage.setItem(PREF_FACING, facingMode);
     }
 }
 
-// Reactivate wake lock if tab becomes visible again
-document.addEventListener('visibilitychange', async () => {
-    if (wakeLock !== null && document.visibilityState === 'visible') {
-        lockWakeState();
+// ── WAKE LOCK ──
+let wakeLock = null;
+async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { }
     }
+}
+document.addEventListener('visibilitychange', () => {
+    if (wakeLock && document.visibilityState === 'visible') requestWakeLock();
 });
 
-// Set up UI interactions
-const startCameraButton = document.getElementById('startCameraButton');
-if (startCameraButton) {
-    startCameraButton.addEventListener('click', () => {
-        startCameraButton.style.display = 'none';
+// ── EVENTS ──
+startBtn.addEventListener('click', () => {
+    startBtn.disabled = true;
+    // Unlock audio context
+    chimeAudio.volume = 0;
+    chimeAudio.play().then(() => { chimeAudio.pause(); chimeAudio.currentTime = 0; chimeAudio.volume = 1; }).catch(() => { });
+    remoteAudio.volume = 0;
+    remoteAudio.play().catch(() => { });
+    remoteAudio.volume = 1;
+    startCamera();
+});
 
-        // Explicitly unlock audio context by attempting a silent play
-        chimeAudio.volume = 0;
-        chimeAudio.play().then(() => {
-            chimeAudio.pause();
-            chimeAudio.currentTime = 0;
-            chimeAudio.volume = 1;
-        }).catch(err => console.warn('Could not unlock audio context:', err));
-
-        // Similarly attempt playing the dummy remoteAudio
-        remoteAudio.volume = 0;
-        remoteAudio.play().catch(() => { });
-        remoteAudio.volume = 1;
-
-        // Start the WebRTC connection process
-        initCamera();
-    });
-}
+flipBtn.addEventListener('click', flipCamera);

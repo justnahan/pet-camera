@@ -5,219 +5,443 @@
     <meta charset="UTF-8">
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>📺 寵物監視器 - 觀看端</title>
-    <meta name="description" content="長輩友善寵物監視器觀看端">
-    <meta name="theme-color" content="#0F172A">
+    <title>PetCam — 觀看</title>
+    <meta name="theme-color" content="#0a0e1a">
     <link rel="manifest" href="./manifest.json">
-    <link rel="stylesheet" href="./css/style.css">
-
     <style>
-        .viewer-container {
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent
+        }
+
+        :root {
+            --bg: #0a0e1a;
+            --surface: #131929;
+            --surface2: #1e2d45;
+            --primary: #3b82f6;
+            --primary-d: #2563eb;
+            --green: #10b981;
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --text: #f1f5f9;
+            --muted: #64748b;
+            --radius: 20px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif
+        }
+
+        /* ══ SETUP SCREEN ══ */
+        #setupScreen {
             display: flex;
             flex-direction: column;
-            height: 100%;
-            gap: 1rem;
-            position: relative;
-        }
-
-        /* 頂部狀態列 */
-        .header-bar {
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-            z-index: 10;
+            justify-content: center;
+            height: 100dvh;
+            width: 100%;
+            padding: 2rem 1.5rem;
+            gap: 1.75rem;
+            text-align: center;
         }
 
-        .back-btn {
+        .logo-ring {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(59, 130, 246, .35);
+        }
+
+        .logo-ring svg {
+            width: 50px;
+            height: 50px;
+            color: #fff
+        }
+
+        #setupScreen h1 {
+            font-size: 1.8rem;
+            font-weight: 900;
+            letter-spacing: -.5px
+        }
+
+        #setupScreen p {
+            color: var(--muted);
+            font-size: .95rem
+        }
+
+        .id-input-row {
+            width: 100%;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: .75rem
+        }
+
+        .id-input-label {
+            font-size: .75rem;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: left
+        }
+
+        #cameraIdInput {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            background: var(--surface);
+            border: 2px solid var(--surface2);
+            border-radius: 14px;
+            color: var(--text);
+            font-size: 1.6rem;
+            font-family: 'Courier New', monospace;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-align: center;
+            text-transform: uppercase;
+            outline: none;
+            transition: border-color .2s;
+        }
+
+        #cameraIdInput:focus {
+            border-color: var(--primary)
+        }
+
+        #cameraIdInput::placeholder {
+            color: var(--muted);
+            letter-spacing: .05em
+        }
+
+        .connect-btn {
+            width: 100%;
+            max-width: 340px;
+            height: 68px;
+            border-radius: 34px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-d));
+            border: none;
+            color: #fff;
+            font-size: 1.15rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .75rem;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(59, 130, 246, .35);
+            transition: transform .15s, box-shadow .15s;
+        }
+
+        .connect-btn:active {
+            transform: scale(.97);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, .25)
+        }
+
+        .connect-btn svg {
+            width: 26px;
+            height: 26px
+        }
+
+        .ghost-btn {
             background: transparent;
-            padding: 0.5rem;
-            min-width: auto;
-            color: #94A3B8;
+            border: 1px solid var(--surface2);
+            color: var(--muted);
+            border-radius: 12px;
+            padding: .6rem 1rem;
+            font-size: .9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
         }
 
-        .back-btn svg {
-            width: 32px;
-            height: 32px;
+        .ghost-btn svg {
+            width: 18px;
+            height: 18px
         }
 
-        /* 影片播放區 */
-        .video-wrapper {
+        /* ══ MAIN VIEWER ══ */
+        #mainViewer {
+            display: none;
+            flex-direction: column;
+            height: 100dvh;
+            width: 100%;
+        }
+
+        /* Top bar */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: .75rem 1rem;
+            padding-top: max(.75rem, env(safe-area-inset-top));
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        .icon-circle {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--surface2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--muted);
+            transition: background .15s;
+        }
+
+        .icon-circle:active {
+            background: var(--surface2)
+        }
+
+        .icon-circle svg {
+            width: 22px;
+            height: 22px
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            padding: .4rem .9rem;
+            border-radius: 999px;
+            background: var(--surface);
+            border: 1px solid var(--surface2);
+            font-size: .85rem;
+            font-weight: 600;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--muted);
+            flex-shrink: 0;
+            transition: background .3s, box-shadow .3s
+        }
+
+        .dot.online {
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green)
+        }
+
+        .dot.error {
+            background: var(--red);
+            box-shadow: 0 0 8px var(--red)
+        }
+
+        /* Video area */
+        .video-area {
             flex: 1;
             position: relative;
-            background-color: #000;
-            border-radius: var(--border-radius);
+            background: #000;
             overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
         }
 
         #remoteVideo {
             width: 100%;
             height: 100%;
             object-fit: contain;
-            /* 保留完整畫面不裁切 */
-            background-color: #000;
+            background: #000;
+            display: block;
         }
 
-        /* 載入/斷線提示覆蓋層 */
-        .video-overlay {
+        /* Overlay */
+        #videoOverlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: rgba(15, 23, 42, 0.8);
-            backdrop-filter: blur(4px);
+            gap: 1.25rem;
+            background: rgba(10, 14, 26, .85);
+            backdrop-filter: blur(6px);
             z-index: 5;
-            text-align: center;
-            padding: 2rem;
         }
 
-        .loading-spinner {
-            width: 64px;
-            height: 64px;
-            border: 6px solid rgba(255, 255, 255, 0.2);
-            border-top-color: var(--primary);
+        .spinner {
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
+            border: 5px solid rgba(255, 255, 255, .1);
+            border-top-color: var(--primary);
             animation: spin 1s linear infinite;
-            margin-bottom: 1.5rem;
         }
 
         @keyframes spin {
             to {
-                transform: rotate(360deg);
+                transform: rotate(360deg)
             }
         }
 
-        .overlay-text {
-            font-size: 1.5rem;
-            font-weight: bold;
+        #overlayMessage {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-align: center;
+            line-height: 1.6
         }
 
-        /* 底部控制列 - 對講機按鈕 */
-        .controls-bar {
-            padding: 1rem 0;
+        /* Talk button area */
+        .bottom-bar {
+            padding: 1rem 1.5rem;
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
             display: flex;
+            align-items: center;
             justify-content: center;
+            flex-shrink: 0;
         }
 
         #talkButton {
             width: 100%;
-            max-width: 500px;
-            height: 120px;
-            /* 超大點擊高度 */
-            border-radius: 60px;
-            font-size: 2rem;
-            box-shadow: 0 8px 0 rgba(0, 0, 0, 0.3);
+            max-width: 480px;
+            height: 100px;
+            border-radius: 50px;
+            background: linear-gradient(135deg, var(--green), #059669);
+            border: none;
+            color: #fff;
+            cursor: pointer;
             display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
+            align-items: center;
+            justify-content: center;
+            gap: .75rem;
+            box-shadow: 0 8px 24px rgba(16, 185, 129, .3);
+            transition: transform .1s, box-shadow .1s, background .1s;
+            font-size: 1.15rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #talkButton svg {
+            width: 34px;
+            height: 34px;
+            flex-shrink: 0
         }
 
         #talkButton.recording {
-            background-color: var(--danger);
-            transform: translateY(8px);
-            box-shadow: 0 0 0 rgba(0, 0, 0, 0);
-            outline: 6px solid rgba(239, 68, 68, 0.4);
-            outline-offset: 4px;
+            background: linear-gradient(135deg, var(--red), #dc2626);
+            box-shadow: 0 0 0 6px rgba(239, 68, 68, .25), 0 8px 24px rgba(239, 68, 68, .3);
+            transform: scale(.97);
         }
 
-        .talk-icon {
-            width: 48px;
-            height: 48px;
-        }
-
-        .control-help {
-            text-align: center;
-            color: #94A3B8;
-            font-size: 1.1rem;
-            margin-top: -0.5rem;
+        #talkButton:disabled {
+            opacity: .4;
+            cursor: not-allowed
         }
     </style>
 </head>
 
 <body>
-    <main class="app-container">
 
-        <!-- Setup View for entering ID -->
-        <div id="setupView" class="setup-view"
-            style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 2rem;">
-            <h1 style="text-align: center; margin-bottom: 0;">設定連線</h1>
-            <p style="color: #94A3B8; text-align: center;">請輸入攝影機畫面上的 6 碼 ID</p>
+    <!-- ══ SETUP SCREEN ══ -->
+    <div id="setupScreen">
+        <div class="logo-ring">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+        </div>
 
-            <input type="text" id="cameraIdInput" placeholder="PET-XXXX"
-                style="font-size: 2rem; padding: 1rem; width: 90%; max-width: 400px; text-align: center; border-radius: 8px; border: 2px solid #334155; background: #0F172A; color: #F8FAFC; text-transform: uppercase; font-family: monospace; letter-spacing: 2px;"
-                autocomplete="off" />
+        <div>
+            <h1>觀看監視器</h1>
+            <p style="margin-top:.5rem">輸入攝影機畫面上的 ID</p>
+        </div>
 
-            <button id="connectButton" class="btn-primary" style="width: 90%; max-width: 400px; font-size: 1.5rem;">
+        <div class="id-input-row">
+            <div class="id-input-label">攝影機 ID</div>
+            <input id="cameraIdInput" type="text" placeholder="PET-XXXX" autocomplete="off" />
+        </div>
+
+        <button class="connect-btn" id="connectButton">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+            </svg>
+            開始觀看
+        </button>
+
+        <button class="ghost-btn" onclick="window.location.href='index.html'">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+            </svg>
+            返回首頁
+        </button>
+    </div>
+
+    <!-- ══ MAIN VIEWER ══ -->
+    <div id="mainViewer">
+        <div class="top-bar">
+            <!-- Back button -->
+            <button class="icon-circle" id="backButton" aria-label="返回">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                    stroke="currentColor"
-                    style="width: 32px; height: 32px; display: inline-block; vertical-align: middle;">
+                    stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                        d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
                 </svg>
-                開始觀看
             </button>
-            <button onclick="window.location.href='index.html'"
-                style="background: transparent; margin-top: 1rem; border: 1px solid #475569; font-size: 1rem; width: auto; padding: 0.5rem 1rem;">
-                返回首頁
+
+            <!-- Status pill -->
+            <div class="status-pill">
+                <div class="dot" id="statusDot"></div>
+                <span id="statusText">連線中</span>
+            </div>
+
+            <!-- Switch ID button -->
+            <button class="icon-circle" id="switchIdButton" aria-label="切換攝影機">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
             </button>
         </div>
 
-        <!-- Main Viewer Area -->
-        <div id="mainViewer" class="viewer-container" style="display: none;">
-            <header class="header-bar">
-                <button class="back-btn" onclick="window.location.href='index.html'" aria-label="返回首頁">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-                    </svg>
-                </button>
-                <div class="status-badge" id="statusBadge">
-                    <div class="status-indicator" id="statusDot"></div>
-                    <span id="statusText">正在連線...</span>
-                </div>
-                <button class="back-btn" id="switchIdButton" aria-label="切換 ID"
-                    style="font-size: 0.8rem; padding: 0.3rem 0.5rem;">
-                    切換
-                </button>
-            </header>
-
-            <div class="video-wrapper">
-                <video id="remoteVideo" autoplay muted playsinline webkit-playsinline></video>
-
-                <div class="video-overlay" id="videoOverlay">
-                    <div class="loading-spinner" id="loadingSpinner"></div>
-                    <div class="overlay-text" id="overlayMessage">等待攝影機連線中...</div>
-                </div>
+        <div class="video-area">
+            <video id="remoteVideo" autoplay muted playsinline webkit-playsinline></video>
+            <div id="videoOverlay">
+                <div class="spinner" id="loadingSpinner"></div>
+                <div id="overlayMessage">等待攝影機連線...</div>
             </div>
-
-            <div class="controls-bar">
-                <button id="talkButton" aria-pressed="false" class="btn-success">
-                    <svg class="talk-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                        stroke-width="2" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
-                    </svg>
-                    <span id="talkLabel">按住 叫貓咪</span>
-                </button>
-            </div>
-            <div class="control-help">⚠️ 講話時請按住按鈕不放，講完鬆開</div>
         </div>
-    </main>
 
-    <!-- load PeerJS via CDN -->
+        <div class="bottom-bar">
+            <button id="talkButton">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+                </svg>
+                <span id="talkLabel">按住說話</span>
+            </button>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/viewer.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js');
-            });
+            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
         }
     </script>
 </body>
