@@ -213,7 +213,6 @@
         </div>
         <div>
             <h1>PetCam</h1>
-            <p class="sub">選擇這台裝置的功能</p>
         </div>
         <div class="cards">
             <a href="viewer.html" class="card card-viewer" aria-label="進入觀看模式">
@@ -227,7 +226,6 @@
                 </div>
                 <div class="card-text">
                     <h2>觀看監視器</h2>
-                    <p>查看貓咪即時畫面</p>
                 </div>
                 <div class="card-arrow">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
@@ -246,7 +244,6 @@
                 </div>
                 <div class="card-text">
                     <h2>設定為攝影機</h2>
-                    <p>舊手機放在貓咪旁邊</p>
                 </div>
                 <div class="card-arrow">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
@@ -267,7 +264,6 @@
                 </div>
                 <div class="card-text">
                     <h2 style="color:#0f172a">安裝到桌面</h2>
-                    <p style="color:#475569">像 APP 一樣快速開啟</p>
                 </div>
                 <div class="card-arrow">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
@@ -278,32 +274,32 @@
             </button>
         </div>
         <script>
-        // PWA install prompt
-        var deferredPrompt = null;
-        window.addEventListener('beforeinstallprompt', function(e) {
-            e.preventDefault();
-            deferredPrompt = e;
-            var btn = document.getElementById('installBtn');
-            if (btn) btn.style.display = 'flex';
-        });
-        function installPWA() {
-            if (!deferredPrompt) return;
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(function(result) {
-                deferredPrompt = null;
+            // PWA install prompt
+            var deferredPrompt = null;
+            window.addEventListener('beforeinstallprompt', function (e) {
+                e.preventDefault();
+                deferredPrompt = e;
+                var btn = document.getElementById('installBtn');
+                if (btn) btn.style.display = 'flex';
+            });
+            function installPWA() {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(function (result) {
+                    deferredPrompt = null;
+                    var btn = document.getElementById('installBtn');
+                    if (btn) btn.style.display = 'none';
+                });
+            }
+            // Hide install button if already installed
+            window.addEventListener('appinstalled', function () {
                 var btn = document.getElementById('installBtn');
                 if (btn) btn.style.display = 'none';
             });
-        }
-        // Hide install button if already installed
-        window.addEventListener('appinstalled', function() {
-            var btn = document.getElementById('installBtn');
-            if (btn) btn.style.display = 'none';
-        });
 
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() { navigator.serviceWorker.register('./sw.js'); });
-        }
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js'); });
+            }
         </script>
 </body>
 
