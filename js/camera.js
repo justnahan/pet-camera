@@ -135,6 +135,7 @@ function initPeer() {
     peer.on('connection', function (conn) {
         conn.on('data', function (data) {
             if (data === 'flip') flipCamera();
+            if (data === 'dim') togglePowerSave();
         });
     });
 
@@ -197,16 +198,33 @@ function flipCamera() {
     openCamera(currentCamIndex);
 }
 
-// Wake lock
+// Wake lock & Power Save
 var wakeLock = null;
 function requestWakeLock() {
     if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(function (wl) { wakeLock = wl; }).catch(function () { });
+        navigator.wakeLock.request('screen')
+            .then(function (wl) {
+                wakeLock = wl;
+                wl.addEventListener('release', function () { wakeLock = null; });
+            })
+            .catch(function () { });
     }
 }
 document.addEventListener('visibilitychange', function () {
-    if (wakeLock && document.visibilityState === 'visible') requestWakeLock();
+    if (wakeLock !== null && document.visibilityState === 'visible') {
+        requestWakeLock();
+    }
 });
+function togglePowerSave(forceDim) {
+    var overlay = document.getElementById('dimOverlay');
+    if (!overlay) return;
+    if (typeof forceDim === 'boolean') {
+        overlay.style.display = forceDim ? 'flex' : 'none';
+    } else {
+        overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+    }
+    requestWakeLock();
+}
 
 // Start button
 if (startBtn) {
