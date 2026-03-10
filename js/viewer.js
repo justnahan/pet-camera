@@ -125,15 +125,18 @@ function startViewer(cameraId) {
         });
     }
 
-    // Push-to-talk
+    var isTalking = false;
     function startTalk(e) {
         if (e.type === 'touchstart') e.preventDefault();
+        isTalking = true;
         localStream.getAudioTracks().forEach(function (t) { t.enabled = true; });
         if (talkBtn) talkBtn.classList.add('recording');
         if (talkLabel) talkLabel.textContent = '放開結束';
     }
     function stopTalk(e) {
-        if (e && e.type === 'touchend') e.preventDefault();
+        if (!isTalking) return; // Only act if we were talking
+        isTalking = false;
+        // Do NOT call preventDefault() here — it kills all button clicks on mobile!
         localStream.getAudioTracks().forEach(function (t) { t.enabled = false; });
         if (talkBtn) talkBtn.classList.remove('recording');
         if (talkLabel) talkLabel.textContent = '按住說話';
@@ -143,6 +146,6 @@ function startViewer(cameraId) {
         talkBtn.addEventListener('touchstart', startTalk, { passive: false });
     }
     window.addEventListener('mouseup', stopTalk);
-    window.addEventListener('touchend', stopTalk, { passive: false });
+    window.addEventListener('touchend', stopTalk);
     window.addEventListener('touchcancel', stopTalk);
 }
