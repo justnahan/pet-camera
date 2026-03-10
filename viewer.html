@@ -423,7 +423,7 @@
 
         <!-- Navigation BELOW video — large labeled buttons -->
         <div class="nav-row">
-            <button class="nav-btn" id="backButton" type="button">
+            <button class="nav-btn" type="button" onclick="window.location.href='index.html'">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -431,7 +431,8 @@
                 </svg>
                 返回首頁
             </button>
-            <button class="nav-btn" id="switchIdButton" type="button">
+            <button class="nav-btn" type="button"
+                onclick="localStorage.removeItem('petcam_target_id');window.location.reload()">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
