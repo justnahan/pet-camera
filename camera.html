@@ -1,166 +1,369 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>PetCam — 攝影機</title>
-    <meta name="theme-color" content="#0a0e1a">
+    <meta name="theme-color" content="#000">
     <link rel="manifest" href="./manifest.json">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-        :root{
-            --bg:#0a0e1a;--surface:#131929;--surface2:#1e2d45;
-            --primary:#3b82f6;--primary-d:#2563eb;
-            --green:#10b981;--red:#ef4444;--amber:#f59e0b;
-            --text:#f1f5f9;--muted:#64748b;
-            --radius:20px;
-        }
-        html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif}
-        body{display:flex;flex-direction:column;align-items:center;justify-content:center}
 
-        /* ── SETUP SCREEN ── */
-        #setupScreen{
-            display:flex;flex-direction:column;align-items:center;justify-content:center;
-            height:100dvh;width:100%;padding:2rem 1.5rem;gap:1.5rem;text-align:center;
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent
         }
-        .logo-ring{
-            width:100px;height:100px;border-radius:50%;
-            background:linear-gradient(135deg,var(--primary),#8b5cf6);
-            display:flex;align-items:center;justify-content:center;
-            box-shadow:0 0 40px rgba(59,130,246,.4);
+
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: 'Inter', sans-serif
         }
-        .logo-ring svg{width:52px;height:52px;color:#fff}
-        #setupScreen h1{font-size:1.8rem;font-weight:900;letter-spacing:-0.5px}
-        #setupScreen p{color:var(--muted);font-size:1rem;max-width:280px}
 
-        .id-badge{
-            background:var(--surface);border-radius:var(--radius);
-            padding:1.25rem 2rem;width:100%;max-width:340px;
-            border:1px solid var(--surface2);
+        /* ─── SETUP (before camera starts) ─── */
+        #setupScreen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100dvh;
+            width: 100%;
+            padding: 2rem 1.5rem;
+            gap: 1.75rem;
+            text-align: center;
+            background: linear-gradient(160deg, #0c1220 0%, #0a0e1a 40%, #111827 100%);
         }
-        .id-label{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
-        .id-value{font-size:2.2rem;font-family:'Courier New',monospace;font-weight:700;letter-spacing:.15em;color:var(--primary);user-select:all}
 
-        .status-row{display:flex;align-items:center;gap:.6rem;font-size:.95rem;color:var(--muted)}
-        .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
-        .dot.online{background:var(--green);box-shadow:0 0 8px var(--green)}
-        .dot.error{background:var(--red);box-shadow:0 0 8px var(--red)}
-
-        .start-btn{
-            width:100%;max-width:340px;height:72px;border-radius:36px;
-            background:linear-gradient(135deg,var(--green),#059669);
-            border:none;color:#fff;font-size:1.2rem;font-weight:700;
-            display:flex;align-items:center;justify-content:center;gap:.75rem;
-            cursor:pointer;box-shadow:0 8px 24px rgba(16,185,129,.35);
-            transition:transform .15s,box-shadow .15s;
+        .logo-ring {
+            width: 88px;
+            height: 88px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(99, 102, 241, .35);
         }
-        .start-btn:active{transform:scale(.97);box-shadow:0 4px 12px rgba(16,185,129,.3)}
-        .start-btn svg{width:28px;height:28px}
-        .start-btn:disabled{opacity:.5;cursor:not-allowed}
 
-        .icon-btn{
-            background:transparent;border:1px solid var(--surface2);
-            color:var(--muted);border-radius:12px;
-            padding:.6rem 1rem;font-size:.9rem;font-weight:600;
-            cursor:pointer;display:flex;align-items:center;gap:.5rem;
+        .logo-ring svg {
+            width: 44px;
+            height: 44px;
+            color: #fff
         }
-        .icon-btn svg{width:18px;height:18px}
 
-        /* ── MONITORING (BLACKOUT) SCREEN ── */
-        #monitoringScreen{
-            display:none;position:fixed;inset:0;background:#000;z-index:200;
-            flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;
+        #setupScreen h1 {
+            font-size: 1.6rem;
+            font-weight: 800
         }
-        body.monitoring #monitoringScreen{display:flex}
-        body.monitoring #setupScreen{display:none}
 
-        .pulse-dot{
-            width:64px;height:64px;border-radius:50%;background:var(--red);
-            animation:pulse 2s ease-in-out infinite;
+        #setupScreen p {
+            color: #94a3b8;
+            font-size: .95rem
         }
-        @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 20px rgba(239,68,68,0)}}
-        .monitoring-label{color:#374151;font-size:1rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase}
 
-        /* Flip camera overlay button */
-        #flipBtn{
-            position:fixed;bottom:2rem;right:1.5rem;z-index:100;
-            width:56px;height:56px;border-radius:50%;
-            background:rgba(255,255,255,.12);backdrop-filter:blur(8px);
-            border:1px solid rgba(255,255,255,.15);
-            color:#fff;cursor:pointer;display:none;
-            align-items:center;justify-content:center;
+        /* ID badge */
+        .id-badge {
+            width: 100%;
+            max-width: 320px;
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, .06);
+            border: 1.5px solid rgba(255, 255, 255, .1);
         }
-        #flipBtn svg{width:26px;height:26px}
-        body:not(.monitoring) #flipBtn{display:flex}
-        /* only show after camera started */
-        #flipBtn.hidden{display:none!important}
 
-        /* Local video preview */
-        #localVideo{
-            position:fixed;bottom:2rem;left:1.5rem;
-            width:96px;height:128px;border-radius:12px;
-            object-fit:cover;background:#000;
-            border:2px solid var(--surface2);z-index:50;
-            display:none;
+        .id-badge-label {
+            font-size: .8rem;
+            color: #94a3b8;
+            font-weight: 600;
+            margin-bottom: .35rem
+        }
+
+        .id-badge-value {
+            font-family: 'Courier New', monospace;
+            font-size: 1.6rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #fff;
+        }
+
+        /* Status */
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .5rem;
+            font-size: .9rem;
+            color: #94a3b8
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #475569
+        }
+
+        .dot.online {
+            background: #22c55e;
+            box-shadow: 0 0 6px rgba(34, 197, 94, .6)
+        }
+
+        .dot.error {
+            background: #ef4444;
+            box-shadow: 0 0 6px rgba(239, 68, 68, .5)
+        }
+
+        /* Start button */
+        .start-btn {
+            width: 100%;
+            max-width: 360px;
+            height: 64px;
+            border-radius: 18px;
+            border: none;
+            background: linear-gradient(135deg, #6366f1, #7c3aed);
+            color: #fff;
+            font-size: 1.15rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .6rem;
+            box-shadow: 0 6px 20px rgba(99, 102, 241, .35);
+            font-family: 'Inter', sans-serif;
+            transition: transform .12s;
+        }
+
+        .start-btn:active {
+            transform: scale(.97)
+        }
+
+        .start-btn:disabled {
+            opacity: .5;
+            cursor: default;
+            transform: none
+        }
+
+        .start-btn svg {
+            width: 26px;
+            height: 26px
+        }
+
+        .ghost-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, .12);
+            color: #94a3b8;
+            border-radius: 12px;
+            padding: .6rem 1rem;
+            font-size: .9rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .ghost-btn svg {
+            width: 18px;
+            height: 18px
+        }
+
+        /* ─── LIVE VIEW ─── */
+        #liveView {
+            display: none;
+            flex-direction: column;
+            height: 100dvh;
+            width: 100%;
+            background: #000;
+            position: relative
+        }
+
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover
+        }
+
+        /* Floating top bar */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            background: linear-gradient(180deg, rgba(0, 0, 0, .55) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .top-bar>* {
+            pointer-events: auto
+        }
+
+        .top-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .12);
+            backdrop-filter: blur(8px);
+            border: none;
+            cursor: pointer;
+            color: rgba(255, 255, 255, .85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background .15s;
+        }
+
+        .top-icon:active {
+            background: rgba(255, 255, 255, .25)
+        }
+
+        .top-icon svg {
+            width: 20px;
+            height: 20px
+        }
+
+        .hidden {
+            display: none !important
+        }
+
+        .status-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, .45);
+            backdrop-filter: blur(8px);
+            font-size: .8rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, .85);
+        }
+
+        /* ID overlay at bottom */
+        .id-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            padding: 20px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            background: linear-gradient(0deg, rgba(0, 0, 0, .6) 0%, transparent 100%);
+            text-align: center;
+        }
+
+        .id-overlay-label {
+            font-size: .75rem;
+            color: rgba(255, 255, 255, .5);
+            font-weight: 600;
+            margin-bottom: .25rem
+        }
+
+        .id-overlay-value {
+            font-family: 'Courier New', monospace;
+            font-size: 1.4rem;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #fff
+        }
+
+        /* Monitoring indicator */
+        body.monitoring .id-overlay {
+            display: none
+        }
+
+        body.monitoring .status-chip {
+            background: rgba(34, 197, 94, .2);
+            border: 1px solid rgba(34, 197, 94, .3)
         }
     </style>
 </head>
-<body>
-    <audio id="chimeAudio" preload="auto">
-        <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="remoteAudio" autoplay style="display:none"></audio>
-    <video id="localVideo" autoplay muted playsinline webkit-playsinline></video>
 
-    <!-- ── SETUP SCREEN ── -->
+<body>
+
+    <!-- ═══ SETUP SCREEN ═══ -->
     <div id="setupScreen">
         <div class="logo-ring">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9A2.25 2.25 0 0 0 4.5 18.75Z" />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 13.5 5.25h-9A2.25 2.25 0 0 0 2.25 7.5v9A2.25 2.25 0 0 0 4.5 18.75Z" />
             </svg>
         </div>
-
         <div>
             <h1>攝影機</h1>
-            <p style="margin-top:.5rem">固定手機位置，按下啟動開始監控</p>
+            <p>固定手機位置，按下啟動</p>
         </div>
-
         <div class="id-badge">
-            <div class="id-label">攝影機 ID</div>
-            <div class="id-value" id="peerIdDisplay">---</div>
+            <div class="id-badge-label">攝影機 ID</div>
+            <div class="id-badge-value" id="peerIdDisplay">---</div>
         </div>
-
         <div class="status-row">
             <div class="dot" id="statusDot"></div>
             <span id="statusText">等待啟動...</span>
         </div>
-
         <button class="start-btn" id="startCameraButton">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653Z" />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
             </svg>
             啟動攝影機
         </button>
-
-        <button class="icon-btn" onclick="window.location.href='index.html'">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
+        <button class="ghost-btn" onclick="window.location.href='index.html'">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+            </svg>
             返回首頁
         </button>
     </div>
 
-    <!-- ── MONITORING (BLACKOUT) SCREEN ── -->
-    <div id="monitoringScreen">
-        <div class="pulse-dot"></div>
-        <div class="monitoring-label">觀看中</div>
+    <!-- ═══ LIVE VIEW ═══ -->
+    <div id="liveView">
+        <div class="top-bar">
+            <button class="top-icon" type="button" onclick="window.location.href='index.html'" aria-label="返回">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                </svg>
+            </button>
+            <div class="status-chip">
+                <div class="dot online" id="liveStatusDot"></div>
+                <span id="liveStatusText">等待觀看端</span>
+            </div>
+            <button class="top-icon" type="button" id="flipBtn" onclick="flipCamera()" aria-label="切換鏡頭">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+            </button>
+        </div>
+        <video id="localVideo" autoplay muted playsinline webkit-playsinline></video>
+        <div class="id-overlay">
+            <div class="id-overlay-label">攝影機 ID</div>
+            <div class="id-overlay-value" id="liveIdDisplay">---</div>
+        </div>
     </div>
 
-    <!-- Flip camera button (visible on setup screen only) -->
-    <button id="flipBtn" class="hidden" aria-label="翻轉鏡頭">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-        </svg>
-    </button>
+    <audio id="chimeAudio" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+    <audio id="remoteAudio" autoplay></audio>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/camera.js"></script>
@@ -170,4 +373,5 @@
         }
     </script>
 </body>
+
 </html>

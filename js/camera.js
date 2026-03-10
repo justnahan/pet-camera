@@ -1,174 +1,187 @@
 /**
- * PetCam — camera.js v4
- * Fixes: enumerate all cameras (not just front/back), chime on call, proper flip cycling
+ * PetCam — camera.js v5
+ * Unified UI: setupScreen → liveView transition
+ * Features: enumerate all cameras, flip cycling, chime, data channel for remote flip
  */
 
-const PREF_PEER_ID = 'petcam_camera_id';
-const PREF_CAM_INDEX = 'petcam_cam_index';
+var PREF_PEER_ID = 'petcam_camera_id';
+var PREF_CAM_INDEX = 'petcam_cam_index';
 
-let peer = null;
-let currentCall = null;
-let localStream = null;
+var peer = null;
+var currentCall = null;
+var localStream = null;
+var cameraDevices = [];
+var currentCamIndex = parseInt(localStorage.getItem(PREF_CAM_INDEX) || '0', 10);
 
-// List of all available camera device IDs
-let cameraDevices = [];
-let currentCamIndex = parseInt(localStorage.getItem(PREF_CAM_INDEX) || '0', 10);
+// Setup screen elements
+var setupScreen = document.getElementById('setupScreen');
+var liveView = document.getElementById('liveView');
+var peerIdDisplay = document.getElementById('peerIdDisplay');
+var statusDot = document.getElementById('statusDot');
+var statusText = document.getElementById('statusText');
+var startBtn = document.getElementById('startCameraButton');
 
-const peerIdDisplay = document.getElementById('peerIdDisplay');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const localVideo = document.getElementById('localVideo');
-const remoteAudio = document.getElementById('remoteAudio');
-const chimeAudio = document.getElementById('chimeAudio');
-const startBtn = document.getElementById('startCameraButton');
-const flipBtn = document.getElementById('flipBtn');
+// Live view elements
+var localVideo = document.getElementById('localVideo');
+var liveIdDisplay = document.getElementById('liveIdDisplay');
+var liveStatusDot = document.getElementById('liveStatusDot');
+var liveStatusText = document.getElementById('liveStatusText');
+var remoteAudio = document.getElementById('remoteAudio');
+var chimeAudio = document.getElementById('chimeAudio');
 
 function setStatus(cls, text) {
-    statusDot.className = 'dot ' + cls;
-    statusText.textContent = text;
+    if (statusDot) statusDot.className = 'dot ' + cls;
+    if (statusText) statusText.textContent = text;
+    if (liveStatusDot) liveStatusDot.className = 'dot ' + cls;
+    if (liveStatusText) liveStatusText.textContent = text;
 }
 
 function getOrCreatePeerId() {
-    let id = localStorage.getItem(PREF_PEER_ID);
+    var id = localStorage.getItem(PREF_PEER_ID);
     if (!id) {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         id = 'PET-';
-        for (let i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
+        for (var i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
         localStorage.setItem(PREF_PEER_ID, id);
     }
     return id;
 }
 
-// Enumerate all video input devices
-async function getCameraDevices() {
-    try {
-        // Need to request any stream first to unlock enumerateDevices labels
-        const temp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        temp.getTracks().forEach(t => t.stop());
-    } catch (e) { }
+// Show peer ID on both screens
+var peerId = getOrCreatePeerId();
+if (peerIdDisplay) peerIdDisplay.textContent = peerId;
+if (liveIdDisplay) liveIdDisplay.textContent = peerId;
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices.filter(d => d.kind === 'videoinput');
+// Enumerate all video input devices
+function getCameraDevices(cb) {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function (temp) {
+            temp.getTracks().forEach(function (t) { t.stop(); });
+            return navigator.mediaDevices.enumerateDevices();
+        })
+        .then(function (devices) {
+            cb(devices.filter(function (d) { return d.kind === 'videoinput'; }));
+        })
+        .catch(function () { cb([]); });
 }
 
-async function startCamera() {
+function startCamera() {
     setStatus('', '啟動鏡頭...');
-    try {
-        // Get all available cameras
-        cameraDevices = await getCameraDevices();
-        console.log('Available cameras:', cameraDevices.map(d => d.label));
-
-        // If saved index is out of bounds, reset to 0
+    getCameraDevices(function (devices) {
+        cameraDevices = devices;
         if (currentCamIndex >= cameraDevices.length) {
             currentCamIndex = 0;
             localStorage.setItem(PREF_CAM_INDEX, '0');
         }
-
-        await openCamera(currentCamIndex);
-
-    } catch (err) {
-        console.error('Camera start failed:', err);
-        setStatus('error', '無法存取攝影機');
-        peerIdDisplay.textContent = 'Error: ' + err.name;
-        startBtn.disabled = false;
-    }
+        openCamera(currentCamIndex);
+    });
 }
 
-async function openCamera(index) {
-    // Stop previous stream
-    if (localStream) localStream.getTracks().forEach(t => t.stop());
+function openCamera(index) {
+    if (localStream) localStream.getTracks().forEach(function (t) { t.stop(); });
 
-    const deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
-    const constraints = deviceId
+    var deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
+    var constraints = deviceId
         ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
         : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
 
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    localVideo.srcObject = localStream;
-    localVideo.style.display = 'block';
-    flipBtn.classList.remove('hidden');
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(function (stream) {
+            localStream = stream;
+            localVideo.srcObject = stream;
 
-    // Update flip icon tooltip with count
-    if (cameraDevices.length > 1) {
-        flipBtn.title = `鏡頭 ${index + 1} / ${cameraDevices.length}`;
-    }
+            // Switch to live view
+            setupScreen.style.display = 'none';
+            liveView.style.display = 'flex';
 
-    // Replace video track in active call (hot-swap without reconnect)
-    if (currentCall && currentCall.peerConnection) {
-        const newTrack = localStream.getVideoTracks()[0];
-        const sender = currentCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender && newTrack) {
-            sender.replaceTrack(newTrack).catch(e => console.warn('replaceTrack failed:', e));
-        }
-    }
+            // Hot-swap video track in active call
+            if (currentCall && currentCall.peerConnection) {
+                var newTrack = stream.getVideoTracks()[0];
+                var senders = currentCall.peerConnection.getSenders();
+                for (var i = 0; i < senders.length; i++) {
+                    if (senders[i].track && senders[i].track.kind === 'video' && newTrack) {
+                        senders[i].replaceTrack(newTrack);
+                        break;
+                    }
+                }
+            }
 
-    if (!peer) {
-        requestWakeLock();
-        initPeer();
-    }
+            if (!peer) {
+                requestWakeLock();
+                initPeer();
+            }
+        })
+        .catch(function (err) {
+            console.error('Camera error:', err);
+            setStatus('error', '無法存取攝影機');
+        });
 }
 
 function initPeer() {
     setStatus('', '連線中...');
-    const cameraId = getOrCreatePeerId();
-    peerIdDisplay.textContent = cameraId;
+    var cameraId = getOrCreatePeerId();
+    if (peerIdDisplay) peerIdDisplay.textContent = cameraId;
+    if (liveIdDisplay) liveIdDisplay.textContent = cameraId;
 
     peer = new Peer(cameraId);
 
-    peer.on('open', id => {
-        peerIdDisplay.textContent = id;
+    peer.on('open', function (id) {
+        if (peerIdDisplay) peerIdDisplay.textContent = id;
+        if (liveIdDisplay) liveIdDisplay.textContent = id;
         setStatus('online', '等待觀看端連線');
     });
 
-    // Listen for data connections (remote flip command from viewer)
-    peer.on('connection', conn => {
-        conn.on('data', data => {
-            if (data === 'flip') {
-                flipCamera();
-            }
+    // Data channel: listen for flip commands from viewer
+    peer.on('connection', function (conn) {
+        conn.on('data', function (data) {
+            if (data === 'flip') flipCamera();
         });
     });
 
-    peer.on('call', call => {
+    peer.on('call', function (call) {
         if (currentCall) currentCall.close();
         currentCall = call;
-
         call.answer(localStream);
 
-        // Play chime immediately
-        chimeAudio.currentTime = 0;
-        chimeAudio.play().catch(() => { });
+        // Play chime
+        if (chimeAudio) {
+            chimeAudio.currentTime = 0;
+            chimeAudio.play().catch(function () { });
+        }
 
         document.body.classList.add('monitoring');
         setStatus('online', '觀看中');
 
-        call.on('stream', remoteStream => {
-            remoteAudio.srcObject = remoteStream;
-            remoteAudio.muted = false;
+        call.on('stream', function (remoteStream) {
+            if (remoteAudio) {
+                remoteAudio.srcObject = remoteStream;
+                remoteAudio.muted = false;
+            }
         });
 
-        call.on('close', () => {
+        call.on('close', function () {
             currentCall = null;
-            remoteAudio.srcObject = null;
+            if (remoteAudio) remoteAudio.srcObject = null;
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
         });
 
-        call.on('error', () => {
+        call.on('error', function () {
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
         });
     });
 
-    peer.on('disconnected', () => {
+    peer.on('disconnected', function () {
         setStatus('error', '伺服器斷線，重連中...');
         peer.reconnect();
     });
 
-    peer.on('error', err => {
+    peer.on('error', function (err) {
         if (err.type === 'unavailable-id') {
             localStorage.removeItem(PREF_PEER_ID);
             peer.destroy();
+            peer = null;
             initPeer();
         } else {
             setStatus('error', '錯誤: ' + err.type);
@@ -176,45 +189,39 @@ function initPeer() {
     });
 }
 
-// ── FLIP: cycle through all cameras ──
-async function flipCamera() {
-    if (cameraDevices.length <= 1) {
-        setStatus('error', '此裝置只有一個鏡頭');
-        setTimeout(() => setStatus('online', '等待觀看端連線'), 2000);
-        return;
-    }
-
+// Flip camera: cycle through all lenses
+function flipCamera() {
+    if (cameraDevices.length <= 1) return;
     currentCamIndex = (currentCamIndex + 1) % cameraDevices.length;
     localStorage.setItem(PREF_CAM_INDEX, String(currentCamIndex));
-
-    try {
-        await openCamera(currentCamIndex);
-    } catch (e) {
-        console.warn('Camera flip error:', e);
-    }
+    openCamera(currentCamIndex);
 }
 
-// ── WAKE LOCK ──
-let wakeLock = null;
-async function requestWakeLock() {
+// Wake lock
+var wakeLock = null;
+function requestWakeLock() {
     if ('wakeLock' in navigator) {
-        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { }
+        navigator.wakeLock.request('screen').then(function (wl) { wakeLock = wl; }).catch(function () { });
     }
 }
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', function () {
     if (wakeLock && document.visibilityState === 'visible') requestWakeLock();
 });
 
-// ── EVENTS ──
-startBtn.addEventListener('click', () => {
-    startBtn.disabled = true;
-    // Unlock audio context with a silent play
-    chimeAudio.volume = 0;
-    chimeAudio.play().then(() => { chimeAudio.pause(); chimeAudio.currentTime = 0; chimeAudio.volume = 1; }).catch(() => { });
-    remoteAudio.volume = 0;
-    remoteAudio.play().catch(() => { });
-    remoteAudio.volume = 1;
-    startCamera();
-});
-
-flipBtn.addEventListener('click', flipCamera);
+// Start button
+if (startBtn) {
+    startBtn.onclick = function () {
+        startBtn.disabled = true;
+        // Unlock audio
+        if (chimeAudio) {
+            chimeAudio.volume = 0;
+            chimeAudio.play().then(function () { chimeAudio.pause(); chimeAudio.currentTime = 0; chimeAudio.volume = 1; }).catch(function () { });
+        }
+        if (remoteAudio) {
+            remoteAudio.volume = 0;
+            remoteAudio.play().catch(function () { });
+            remoteAudio.volume = 1;
+        }
+        startCamera();
+    };
+}
