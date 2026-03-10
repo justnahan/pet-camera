@@ -181,38 +181,51 @@
             width: 100%;
         }
 
-        /* Top bar */
+        /* Top bar — simple status display */
         .top-bar {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: .75rem 1rem;
-            padding-top: max(.75rem, env(safe-area-inset-top));
+            justify-content: center;
+            padding: .5rem 1rem;
+            padding-top: max(.5rem, env(safe-area-inset-top));
             z-index: 10;
             flex-shrink: 0;
         }
 
-        .icon-circle {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: var(--surface);
+        /* Nav buttons — BELOW the video, side by side, large touch targets */
+        .nav-row {
+            display: flex;
+            gap: .75rem;
+            padding: .5rem 1rem;
+            flex-shrink: 0;
+        }
+
+        .nav-btn {
+            flex: 1;
+            height: 56px;
+            border-radius: 14px;
             border: 1px solid var(--surface2);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            color: var(--muted);
+            gap: .5rem;
             transition: background .15s;
         }
 
-        .icon-circle:active {
-            background: var(--surface2)
+        .nav-btn:active {
+            background: var(--surface2);
         }
 
-        .icon-circle svg {
-            width: 22px;
-            height: 22px
+        .nav-btn svg {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
         }
 
         .status-pill {
@@ -391,32 +404,15 @@
 
     <!-- ══ MAIN VIEWER ══ -->
     <div id="mainViewer">
+        <!-- Status bar (center) -->
         <div class="top-bar">
-            <!-- Back button -->
-            <button class="icon-circle" id="backButton" aria-label="返回">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
-                </svg>
-            </button>
-
-            <!-- Status pill -->
             <div class="status-pill">
                 <div class="dot" id="statusDot"></div>
                 <span id="statusText">連線中</span>
             </div>
-
-            <!-- Switch ID button -->
-            <button class="icon-circle" id="switchIdButton" aria-label="切換攝影機">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                </svg>
-            </button>
         </div>
 
+        <!-- Video -->
         <div class="video-area">
             <video id="remoteVideo" autoplay muted playsinline webkit-playsinline></video>
             <div id="videoOverlay">
@@ -425,8 +421,29 @@
             </div>
         </div>
 
+        <!-- Navigation BELOW video — large labeled buttons -->
+        <div class="nav-row">
+            <button class="nav-btn" id="backButton" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                </svg>
+                返回首頁
+            </button>
+            <button class="nav-btn" id="switchIdButton" type="button">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                換攝影機
+            </button>
+        </div>
+
+        <!-- Talk button -->
         <div class="bottom-bar">
-            <button id="talkButton">
+            <button id="talkButton" type="button">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round"
