@@ -16,7 +16,9 @@ var currentCamIndex = parseInt(localStorage.getItem(PREF_CAM_INDEX) || '0', 10);
 // Setup screen elements
 var setupScreen = document.getElementById('setupScreen');
 var liveView = document.getElementById('liveView');
-var peerIdDisplay = document.getElementById('peerIdDisplay');
+var peerIdInput = document.getElementById('peerIdInput');
+var idSavedStatus = document.getElementById('idSavedStatus');
+var idSaveTimer = null;
 var statusDot = document.getElementById('statusDot');
 var statusText = document.getElementById('statusText');
 var startBtn = document.getElementById('startCameraButton');
@@ -257,10 +259,27 @@ function getOrCreatePeerId() {
     return id;
 }
 
-// Show peer ID on both screens
+// Show and handle peer ID on both screens
 var peerId = getOrCreatePeerId();
-if (peerIdDisplay) peerIdDisplay.textContent = peerId;
 if (liveIdDisplay) liveIdDisplay.textContent = peerId;
+
+if (peerIdInput) {
+    peerIdInput.value = peerId;
+    peerIdInput.addEventListener('input', function () {
+        var val = this.value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        this.value = val;
+        if (val) {
+            peerId = val;
+            localStorage.setItem(PREF_PEER_ID, val);
+            if (liveIdDisplay) liveIdDisplay.textContent = val;
+            if (idSavedStatus) {
+                idSavedStatus.style.opacity = '1';
+                clearTimeout(idSaveTimer);
+                idSaveTimer = setTimeout(function () { idSavedStatus.style.opacity = '0'; }, 2000);
+            }
+        }
+    });
+}
 
 // Enumerate all video input devices
 function getCameraDevices(cb) {
@@ -383,6 +402,9 @@ function initPeer() {
             if (remoteAudio) {
                 remoteAudio.srcObject = remoteStream;
                 remoteAudio.muted = false;
+                remoteAudio.play().catch(function (e) {
+                    console.error('Remote audio playback error:', e);
+                });
             }
         });
 

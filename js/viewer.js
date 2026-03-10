@@ -19,7 +19,6 @@ if (connectBtn) {
     connectBtn.onclick = function () {
         var id = cameraInput.value.trim().toUpperCase();
         if (!id) { alert('請輸入攝影機 ID'); return; }
-        if (!id.startsWith('PET-')) id = 'PET-' + id;
 
         localStorage.setItem(PREF_CAMERA_ID, id);
         setupScreen.style.display = 'none';

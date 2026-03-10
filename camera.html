@@ -379,8 +379,14 @@
             <h1>攝影機</h1>
         </div>
         <div class="id-badge">
-            <div class="id-badge-label">攝影機 ID</div>
-            <div class="id-badge-value" id="peerIdDisplay">---</div>
+            <div class="id-badge-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>自訂攝影機 ID</span>
+                <span id="idSavedStatus" style="color:#22c55e;font-size:0.75rem;opacity:0;transition:opacity 0.3s">已儲存
+                    ✓</span>
+            </div>
+            <input type="text" id="peerIdInput" placeholder="輸入自訂ID" autocomplete="off"
+                style="width: 100%; border: none; background: transparent; color: #fff; font-family: 'Courier New', monospace; font-size: 1.6rem; font-weight: 900; letter-spacing: 2px; text-align: center; outline: none; text-transform: uppercase;" />
+            <div style="font-size:0.75rem; color:#64748b; margin-top:0.5rem; text-align:center;">此 ID 將用於觀看端連線使用</div>
         </div>
         <div class="id-input-row" style="margin-top:-0.5rem">
             <div class="id-input-label" style="display:flex; justify-content:space-between; align-items:center;">
@@ -482,7 +488,7 @@
     </div>
 
     <audio id="chimeAudio" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
-    <audio id="remoteAudio" autoplay></audio>
+    <audio id="remoteAudio" autoplay playsinline webkit-playsinline></audio>
 
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="./js/camera.js"></script>
