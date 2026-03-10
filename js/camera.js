@@ -29,6 +29,40 @@ var liveStatusText = document.getElementById('liveStatusText');
 var remoteAudio = document.getElementById('remoteAudio');
 var chimeAudio = document.getElementById('chimeAudio');
 
+// Discord Webhook
+var PREF_DISCORD_WEBHOOK = 'petcam_discord_webhook';
+var discordWebhookInput = document.getElementById('discordWebhookInput');
+var webhookSavedStatus = document.getElementById('webhookSavedStatus');
+var webhookSaveTimer = null;
+
+if (discordWebhookInput) {
+    discordWebhookInput.value = localStorage.getItem(PREF_DISCORD_WEBHOOK) || '';
+    discordWebhookInput.addEventListener('input', function () {
+        localStorage.setItem(PREF_DISCORD_WEBHOOK, this.value.trim());
+        if (webhookSavedStatus) {
+            webhookSavedStatus.style.opacity = '1';
+            clearTimeout(webhookSaveTimer);
+            webhookSaveTimer = setTimeout(function () { webhookSavedStatus.style.opacity = '0'; }, 2000);
+        }
+    });
+}
+
+// Discord Webhook Helper Function
+function sendDiscordMessage(webhookUrl, content, fileBlob) {
+    if (!webhookUrl) return;
+
+    var formData = new FormData();
+    if (content) formData.append('content', content);
+    if (fileBlob) formData.append('file', fileBlob, 'petcam_screenshot.png');
+
+    fetch(webhookUrl, {
+        method: 'POST',
+        body: formData
+    }).catch(function (err) {
+        console.error('Discord Webhook Error:', err);
+    });
+}
+
 function setStatus(cls, text) {
     if (statusDot) statusDot.className = 'dot ' + cls;
     if (statusText) statusText.textContent = text;
@@ -129,13 +163,19 @@ function initPeer() {
         if (peerIdDisplay) peerIdDisplay.textContent = id;
         if (liveIdDisplay) liveIdDisplay.textContent = id;
         setStatus('online', '等待觀看端連線');
+
+        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        if (webhookUrl) {
+            sendDiscordMessage(webhookUrl, '🟢 **攝影機已上線** (ID: `' + id + '`)\n準備好接收連線！');
+        }
     });
 
-    // Data channel: listen for flip commands from viewer
+    // Data channel: listen for commands from viewer
     peer.on('connection', function (conn) {
         conn.on('data', function (data) {
             if (data === 'flip') flipCamera();
             if (data === 'dim') togglePowerSave();
+            if (data === 'screenshot') takeAndSendScreenshot();
         });
     });
 
@@ -153,6 +193,9 @@ function initPeer() {
         document.body.classList.add('monitoring');
         setStatus('online', '觀看中');
 
+        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入**');
+
         call.on('stream', function (remoteStream) {
             if (remoteAudio) {
                 remoteAudio.srcObject = remoteStream;
@@ -165,6 +208,8 @@ function initPeer() {
             if (remoteAudio) remoteAudio.srcObject = null;
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
+            var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+            if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線**');
         });
 
         call.on('error', function () {
@@ -175,6 +220,8 @@ function initPeer() {
 
     peer.on('disconnected', function () {
         setStatus('error', '伺服器斷線，重連中...');
+        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        if (webhookUrl) sendDiscordMessage(webhookUrl, '⚠️ **攝影機伺服器意外斷線，嘗試重連中...**');
         peer.reconnect();
     });
 
@@ -188,6 +235,28 @@ function initPeer() {
             setStatus('error', '錯誤: ' + err.type);
         }
     });
+}
+
+// Capture frame and send to Discord
+function takeAndSendScreenshot() {
+    var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+    if (!webhookUrl || !localVideo || !localVideo.videoWidth) return;
+
+    try {
+        var canvas = document.createElement('canvas');
+        canvas.width = localVideo.videoWidth;
+        canvas.height = localVideo.videoHeight;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(localVideo, 0, 0);
+
+        canvas.toBlob(function (blob) {
+            if (blob) {
+                sendDiscordMessage(webhookUrl, '📸 **手動擷取畫面**', blob);
+            }
+        }, 'image/png');
+    } catch (e) {
+        console.error('Screenshot error:', e);
+    }
 }
 
 // Flip camera: cycle through all lenses

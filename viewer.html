@@ -474,6 +474,13 @@
                             d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                     </svg>
                 </button>
+                <button class="top-icon" type="button" onclick="sendScreenshotCommand()" aria-label="傳送截圖至 Discord">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                    </svg>
+                </button>
                 <button class="top-icon" type="button" onclick="takeScreenshot()" aria-label="截圖">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2"
                         stroke="currentColor">
@@ -542,7 +549,21 @@
             showToast('切換攝影機節電模式');
         }
 
-        // ─── Screenshot ───
+        // ─── Send Discord Screenshot Command ───
+        function sendScreenshotCommand() {
+            var camId = localStorage.getItem('petcam_target_id');
+            if (!camId || !window._viewerPeer) return;
+            var conn = window._viewerPeer.connect(camId);
+            conn.on('open', function () { conn.send('screenshot'); });
+
+            // Flash effect for feedback
+            var flash = document.getElementById('flashOverlay');
+            if (flash) { flash.classList.remove('active'); void flash.offsetWidth; flash.classList.add('active'); }
+
+            showToast('已觸發攝影機傳送 Discord');
+        }
+
+        // ─── Screenshot (Local) ───
         function takeScreenshot() {
             var video = document.getElementById('remoteVideo');
             if (!video || !video.videoWidth) { showToast('尚無影像'); return; }
