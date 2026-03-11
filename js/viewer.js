@@ -107,11 +107,37 @@ function startViewer(cameraId) {
             return;
         }
         call.on('stream', function (rs) {
+            console.log('[Viewer] Received remote stream, tracks:', rs.getTracks().map(function(t){ return t.kind + ':' + t.readyState; }));
+            
+            // Ensure video element is ready
+            remoteVideo.muted = true; // Required for autoplay policy
             remoteVideo.srcObject = rs;
-            remoteVideo.muted = true;
-            remoteVideo.play().catch(function () { });
-            setTimeout(function () { remoteVideo.muted = false; }, 600);
-            setStatus('online', '已連線');
+            
+            // Use loadedmetadata for reliable playback on mobile
+            remoteVideo.onloadedmetadata = function () {
+                console.log('[Viewer] Video metadata loaded:', remoteVideo.videoWidth, 'x', remoteVideo.videoHeight);
+                remoteVideo.play().then(function () {
+                    console.log('[Viewer] Video playing successfully');
+                    setStatus('online', '已連線');
+                    // Unmute after successful play
+                    setTimeout(function () { remoteVideo.muted = false; }, 800);
+                }).catch(function (e) {
+                    console.error('[Viewer] Play error:', e);
+                    // Retry with muted
+                    remoteVideo.muted = true;
+                    remoteVideo.play().catch(function () { });
+                    setStatus('online', '已連線（靜音）');
+                });
+            };
+            
+            // Fallback: if metadata doesn't fire within 3s, force play
+            setTimeout(function () {
+                if (remoteVideo.readyState < 2) {
+                    console.warn('[Viewer] Metadata timeout, forcing play...');
+                    remoteVideo.play().catch(function () { });
+                    setStatus('online', '已連線');
+                }
+            }, 3000);
         });
         call.on('close', function () {
             setStatus('error', '已斷線', '連線中斷\n點擊重試');
