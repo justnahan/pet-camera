@@ -319,6 +319,7 @@ function openCamera(index) {
     var constraints = deviceId
         ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
         : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
+
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function (stream) {
             localStream = stream;
@@ -395,8 +396,20 @@ function initPeer() {
         document.body.classList.add('monitoring');
         setStatus('online', '觀看中');
 
+        // Switch to High Res upon view
+        if (localStream) {
+            var videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.applyConstraints({
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 24 }
+                }).catch(function (e) { console.error('Error switching to hi-res:', e); });
+            }
+        }
+
         var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
-        if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入**');
+        if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入 (已切換高畫質)**');
 
         call.on('stream', function (remoteStream) {
             if (remoteAudio) {
@@ -413,8 +426,21 @@ function initPeer() {
             if (remoteAudio) remoteAudio.srcObject = null;
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
+
+            // Downscale back to lower res to save power
+            if (localStream) {
+                var videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.applyConstraints({
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 15 }
+                    }).catch(function (e) { console.error('Error reverting to low-res:', e); });
+                }
+            }
+
             var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
-            if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線**');
+            if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線 (已切換省電畫質)**');
         });
 
         call.on('error', function () {
@@ -445,23 +471,45 @@ function initPeer() {
 // Capture frame and send to Discord
 function takeAndSendScreenshot() {
     var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
-    if (!webhookUrl || !localVideo || !localVideo.videoWidth) return;
+    if (!webhookUrl || !localVideo || !localStream) return;
 
-    try {
-        var canvas = document.createElement('canvas');
-        canvas.width = localVideo.videoWidth;
-        canvas.height = localVideo.videoHeight;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(localVideo, 0, 0);
+    var videoTrack = localStream.getVideoTracks()[0];
+    if (!videoTrack) return;
 
-        canvas.toBlob(function (blob) {
-            if (blob) {
-                sendDiscordMessage(webhookUrl, '📸 **手動擷取畫面**', blob);
-            }
-        }, 'image/png');
-    } catch (e) {
-        console.error('Screenshot error:', e);
-    }
+    // Temporarily bump resolution for the screenshot
+    videoTrack.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } })
+        .then(function () {
+            // Wait slightly for the camera sensor to adapt to new resolution
+            setTimeout(function () {
+                try {
+                    var canvas = document.createElement('canvas');
+                    canvas.width = localVideo.videoWidth;
+                    canvas.height = localVideo.videoHeight;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(localVideo, 0, 0);
+
+                    canvas.toBlob(function (blob) {
+                        if (blob) {
+                            sendDiscordMessage(webhookUrl, '📸 **手動擷取畫面 (' + localVideo.videoWidth + 'x' + localVideo.videoHeight + ')**', blob);
+                        }
+                    }, 'image/jpeg', 0.95);
+
+                    // Revert back to whatever the default state should be
+                    var isCurrentlyViewing = (currentCall !== null);
+                    var newConstraints = isCurrentlyViewing
+                        ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }
+                        : { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } };
+
+                    videoTrack.applyConstraints(newConstraints).catch(function (e) { console.error('Error reverting res:', e); });
+
+                } catch (e) {
+                    console.error('Screenshot error:', e);
+                }
+            }, 600); // 600ms delay to allow hardware switch
+        })
+        .catch(function (e) {
+            console.error('Failed to upscale for screenshot:', e);
+        });
 }
 
 // Flip camera: cycle through all lenses
