@@ -57,6 +57,19 @@ setupWebhookInput('discordWebhookSys', 'webhookStatusSys', PREF_WEBHOOK_SYS);
 setupWebhookInput('discordWebhookAlert', 'webhookStatusAlert', PREF_WEBHOOK_ALERT);
 setupWebhookInput('discordWebhookPhoto', 'webhookStatusPhoto', PREF_WEBHOOK_PHOTO);
 
+// ─── Advanced Settings Accordion ───
+(function () {
+    var toggle = document.getElementById('advancedToggle');
+    var panel = document.getElementById('advancedPanel');
+    if (toggle && panel) {
+        toggle.addEventListener('click', function () {
+            var isOpen = panel.classList.toggle('open');
+            toggle.classList.toggle('open', isOpen);
+            toggle.setAttribute('aria-expanded', String(isOpen));
+        });
+    }
+})();
+
 // ─── Guard Mode & Detection Logic ───
 var guardModeToggle = document.getElementById('guardModeToggle');
 var guardStatusDisplay = document.getElementById('guardStatusDisplay');
