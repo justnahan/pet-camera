@@ -31,23 +31,31 @@ var liveStatusText = document.getElementById('liveStatusText');
 var remoteAudio = document.getElementById('remoteAudio');
 var chimeAudio = document.getElementById('chimeAudio');
 
-// Discord Webhook
-var PREF_DISCORD_WEBHOOK = 'petcam_discord_webhook';
-var discordWebhookInput = document.getElementById('discordWebhookInput');
-var webhookSavedStatus = document.getElementById('webhookSavedStatus');
-var webhookSaveTimer = null;
+// Discord Webhooks (Multi-Channel)
+var PREF_WEBHOOK_SYS = 'petcam_webhook_sys';
+var PREF_WEBHOOK_ALERT = 'petcam_webhook_alert';
+var PREF_WEBHOOK_PHOTO = 'petcam_webhook_photo';
 
-if (discordWebhookInput) {
-    discordWebhookInput.value = localStorage.getItem(PREF_DISCORD_WEBHOOK) || '';
-    discordWebhookInput.addEventListener('input', function () {
-        localStorage.setItem(PREF_DISCORD_WEBHOOK, this.value.trim());
-        if (webhookSavedStatus) {
-            webhookSavedStatus.style.opacity = '1';
-            clearTimeout(webhookSaveTimer);
-            webhookSaveTimer = setTimeout(function () { webhookSavedStatus.style.opacity = '0'; }, 2000);
-        }
-    });
+function setupWebhookInput(inputId, statusId, prefKey) {
+    var input = document.getElementById(inputId);
+    var status = document.getElementById(statusId);
+    var timer = null;
+    if (input) {
+        input.value = localStorage.getItem(prefKey) || '';
+        input.addEventListener('input', function () {
+            localStorage.setItem(prefKey, this.value.trim());
+            if (status) {
+                status.style.opacity = '1';
+                clearTimeout(timer);
+                timer = setTimeout(function () { status.style.opacity = '0'; }, 2000);
+            }
+        });
+    }
 }
+
+setupWebhookInput('discordWebhookSys', 'webhookStatusSys', PREF_WEBHOOK_SYS);
+setupWebhookInput('discordWebhookAlert', 'webhookStatusAlert', PREF_WEBHOOK_ALERT);
+setupWebhookInput('discordWebhookPhoto', 'webhookStatusPhoto', PREF_WEBHOOK_PHOTO);
 
 // ─── Guard Mode & Detection Logic ───
 var guardModeToggle = document.getElementById('guardModeToggle');
@@ -197,7 +205,7 @@ function triggerAlert(message) {
     var now = Date.now();
     if (now - lastAlertTime < COOLDOWN_MS) return; // Cooldown active
 
-    var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+    var webhookUrl = localStorage.getItem(PREF_WEBHOOK_ALERT);
     if (!webhookUrl) return; // Only trigger if webhook is configured
 
     lastAlertTime = now;
@@ -367,7 +375,7 @@ function initPeer() {
         if (liveIdDisplay) liveIdDisplay.textContent = id;
         setStatus('online', '等待觀看端連線');
 
-        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
         if (webhookUrl) {
             sendDiscordMessage(webhookUrl, '🟢 **攝影機已上線** (ID: `' + id + '`)\n準備好接收連線！');
         }
@@ -408,7 +416,7 @@ function initPeer() {
             }
         }
 
-        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
         if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入 (已切換高畫質)**');
 
         call.on('stream', function (remoteStream) {
@@ -439,7 +447,7 @@ function initPeer() {
                 }
             }
 
-            var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+            var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
             if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線 (已切換省電畫質)**');
         });
 
@@ -451,7 +459,7 @@ function initPeer() {
 
     peer.on('disconnected', function () {
         setStatus('error', '伺服器斷線，重連中...');
-        var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+        var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
         if (webhookUrl) sendDiscordMessage(webhookUrl, '⚠️ **攝影機伺服器意外斷線，嘗試重連中...**');
         peer.reconnect();
     });
@@ -470,45 +478,52 @@ function initPeer() {
 
 // Capture frame and send to Discord
 function takeAndSendScreenshot() {
-    var webhookUrl = localStorage.getItem(PREF_DISCORD_WEBHOOK);
+    var webhookUrl = localStorage.getItem(PREF_WEBHOOK_PHOTO) || localStorage.getItem('petcam_discord_webhook'); // fallback for backward compat
     if (!webhookUrl || !localVideo || !localStream) return;
 
     var videoTrack = localStream.getVideoTracks()[0];
     if (!videoTrack) return;
 
+    // Helper functions inside
+    var captureImage = function (isHighRes) {
+        try {
+            var canvas = document.createElement('canvas');
+            canvas.width = localVideo.videoWidth;
+            canvas.height = localVideo.videoHeight;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(localVideo, 0, 0);
+
+            canvas.toBlob(function (blob) {
+                if (blob) {
+                    var msg = isHighRes ? '📸 **手動擷取畫面 (' + localVideo.videoWidth + 'x' + localVideo.videoHeight + ')**' : '📸 **手動擷取畫面 (省電畫質)**';
+                    sendDiscordMessage(webhookUrl, msg, blob);
+                }
+            }, 'image/jpeg', 0.95);
+        } catch (e) { console.error('Capture error:', e); }
+    };
+
+    var revertResolution = function () {
+        var isCurrentlyViewing = (currentCall !== null);
+        var newConstraints = isCurrentlyViewing
+            ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }
+            : { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } };
+
+        videoTrack.applyConstraints(newConstraints).catch(function (e) { });
+    };
+
     // Temporarily bump resolution for the screenshot
     videoTrack.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } })
         .then(function () {
-            // Wait slightly for the camera sensor to adapt to new resolution
+            // Success! Wait for sensor adaptation
             setTimeout(function () {
-                try {
-                    var canvas = document.createElement('canvas');
-                    canvas.width = localVideo.videoWidth;
-                    canvas.height = localVideo.videoHeight;
-                    var ctx = canvas.getContext('2d');
-                    ctx.drawImage(localVideo, 0, 0);
-
-                    canvas.toBlob(function (blob) {
-                        if (blob) {
-                            sendDiscordMessage(webhookUrl, '📸 **手動擷取畫面 (' + localVideo.videoWidth + 'x' + localVideo.videoHeight + ')**', blob);
-                        }
-                    }, 'image/jpeg', 0.95);
-
-                    // Revert back to whatever the default state should be
-                    var isCurrentlyViewing = (currentCall !== null);
-                    var newConstraints = isCurrentlyViewing
-                        ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }
-                        : { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } };
-
-                    videoTrack.applyConstraints(newConstraints).catch(function (e) { console.error('Error reverting res:', e); });
-
-                } catch (e) {
-                    console.error('Screenshot error:', e);
-                }
-            }, 600); // 600ms delay to allow hardware switch
+                captureImage(true);
+                revertResolution();
+            }, 600);
         })
         .catch(function (e) {
-            console.error('Failed to upscale for screenshot:', e);
+            console.error('Failed to upscale, capturing in current resolution:', e);
+            // Fallback: Just take screenshot as is!
+            captureImage(false);
         });
 }
 
