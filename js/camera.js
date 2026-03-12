@@ -338,8 +338,8 @@ function openCamera(index) {
 
     var deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
     var constraints = deviceId
-        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
-        : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
+        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } }, audio: true }
+        : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } }, audio: true };
 
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function (stream) {
@@ -417,17 +417,7 @@ function initPeer() {
         document.body.classList.add('monitoring');
         setStatus('online', '觀看中');
 
-        // Switch to High Res upon view
-        if (localStream) {
-            var videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.applyConstraints({
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 24 }
-                }).catch(function (e) { console.error('Error switching to hi-res:', e); });
-            }
-        }
+
 
         var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
         if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入 (已切換高畫質)**');

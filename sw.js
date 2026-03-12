@@ -1,5 +1,4 @@
-// PetCam Service Worker — Network-First (always serve latest code)
-const CACHE_NAME = 'petcam-v5';
+const CACHE_NAME = 'petcam-v6';
 
 self.addEventListener('install', event => {
     // Skip waiting so new SW activates immediately

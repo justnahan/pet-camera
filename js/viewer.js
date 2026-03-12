@@ -111,7 +111,13 @@ function startViewer(cameraId) {
             
             // Ensure video element is ready
             remoteVideo.muted = true; // Required for autoplay policy
+            remoteVideo.setAttribute('playsinline', '');
+            remoteVideo.setAttribute('autoplay', '');
             remoteVideo.srcObject = rs;
+            
+            // Attempt immediate play (helps some Android browsers)
+            var p = remoteVideo.play();
+            if (p && p.catch) p.catch(function() {});
             
             // Use loadedmetadata for reliable playback on mobile
             remoteVideo.onloadedmetadata = function () {
