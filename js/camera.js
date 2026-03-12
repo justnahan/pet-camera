@@ -364,8 +364,8 @@ function openCamera(index) {
 
     var deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
     var constraints = deviceId
-        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } }, audio: true }
-        : { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } }, audio: true };
+        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
+        : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
 
     navigator.mediaDevices.getUserMedia(constraints)
         .then(function (stream) {
