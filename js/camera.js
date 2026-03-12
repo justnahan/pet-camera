@@ -446,7 +446,7 @@ function initPeer() {
 
 
         var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
-        if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入 (已切換高畫質)**');
+        if (webhookUrl) sendDiscordMessage(webhookUrl, '👀 **有觀看端連線加入**');
 
         call.on('stream', function (remoteStream) {
             if (remoteAudio) {
@@ -464,20 +464,8 @@ function initPeer() {
             document.body.classList.remove('monitoring');
             setStatus('online', '等待觀看端連線');
 
-            // Downscale back to lower res to save power
-            if (localStream) {
-                var videoTrack = localStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.applyConstraints({
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        frameRate: { ideal: 15 }
-                    }).catch(function (e) { console.error('Error reverting to low-res:', e); });
-                }
-            }
-
             var webhookUrl = localStorage.getItem(PREF_WEBHOOK_SYS);
-            if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線 (已切換省電畫質)**');
+            if (webhookUrl) sendDiscordMessage(webhookUrl, '👋 **觀看端已中斷連線**');
         });
 
         call.on('error', function () {
