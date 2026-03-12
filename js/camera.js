@@ -216,17 +216,24 @@ function checkMotion() {
 function triggerAlert(message) {
     if (!isGuardMode) return;
     var now = Date.now();
-    if (now - lastAlertTime < COOLDOWN_MS) return; // Cooldown active
+    if (now - lastAlertTime < COOLDOWN_MS) {
+        console.log('[Alert] 冷卻中，忽略 (' + Math.round((COOLDOWN_MS - (now - lastAlertTime)) / 1000) + '秒後可再次觸發)');
+        return;
+    }
 
     var webhookUrl = localStorage.getItem(PREF_WEBHOOK_ALERT);
-    if (!webhookUrl) return; // Only trigger if webhook is configured
+    if (!webhookUrl) {
+        console.warn('[Alert] 警報 Webhook 未設定，無法發送警報');
+        return;
+    }
 
     lastAlertTime = now;
-    console.log('ALERT TRIGGERED:', message);
+    console.log('[Alert] 🚨 警報觸發:', message);
 
-    // Capture high-res screenshot
+    // Capture screenshot with alert
     if (!localVideo || !localVideo.videoWidth) {
-        sendDiscordMessage(webhookUrl, message); // Send without image
+        console.warn('[Alert] 無法擷取畫面，僅傳送文字');
+        sendDiscordMessage(webhookUrl, message);
         return;
     }
 
@@ -238,27 +245,46 @@ function triggerAlert(message) {
         fullCtx.drawImage(localVideo, 0, 0);
 
         fullCanvas.toBlob(function (blob) {
-            sendDiscordMessage(webhookUrl, message, blob);
+            if (blob) {
+                sendDiscordMessage(webhookUrl, message, blob);
+            } else {
+                console.warn('[Alert] toBlob 失敗，僅傳送文字');
+                sendDiscordMessage(webhookUrl, message);
+            }
         }, 'image/jpeg', 0.85);
     } catch (e) {
-        console.error('Alert screenshot error:', e);
-        sendDiscordMessage(webhookUrl, message); // Send without image as fallback
+        console.error('[Alert] 截圖錯誤:', e);
+        sendDiscordMessage(webhookUrl, message);
     }
 }
 
 // Discord Webhook Helper Function
 function sendDiscordMessage(webhookUrl, content, fileBlob) {
-    if (!webhookUrl) return;
+    if (!webhookUrl) {
+        console.warn('[Webhook] 未設定 Webhook URL');
+        return;
+    }
 
     var formData = new FormData();
     if (content) formData.append('content', content);
-    if (fileBlob) formData.append('file', fileBlob, 'petcam_screenshot.png');
+    if (fileBlob) formData.append('file', fileBlob, 'petcam_screenshot.jpg');
+
+    console.log('[Webhook] 傳送中...', content ? content.substring(0, 50) : '(無文字)', fileBlob ? '(含圖片 ' + Math.round(fileBlob.size / 1024) + 'KB)' : '(無圖片)');
 
     fetch(webhookUrl, {
         method: 'POST',
         body: formData
+    }).then(function (response) {
+        if (!response.ok) {
+            console.error('[Webhook] Discord 回傳錯誤:', response.status, response.statusText);
+            response.text().then(function (body) {
+                console.error('[Webhook] 錯誤內容:', body);
+            }).catch(function () { });
+        } else {
+            console.log('[Webhook] 傳送成功 ✓');
+        }
     }).catch(function (err) {
-        console.error('Discord Webhook Error:', err);
+        console.error('[Webhook] 網路錯誤:', err);
     });
 }
 
@@ -482,52 +508,41 @@ function initPeer() {
 // Capture frame and send to Discord
 function takeAndSendScreenshot() {
     var webhookUrl = localStorage.getItem(PREF_WEBHOOK_PHOTO) || localStorage.getItem('petcam_discord_webhook'); // fallback for backward compat
-    if (!webhookUrl || !localVideo || !localStream) return;
+    if (!webhookUrl || !localVideo || !localStream) {
+        console.warn('[Screenshot] 無法擷取：', !webhookUrl ? '未設定 Webhook' : '攝影機未啟動');
+        return;
+    }
 
     var videoTrack = localStream.getVideoTracks()[0];
-    if (!videoTrack) return;
+    if (!videoTrack || videoTrack.readyState !== 'live') {
+        console.warn('[Screenshot] 影像軌道無效或已停止');
+        return;
+    }
 
-    // Helper functions inside
-    var captureImage = function (isHighRes) {
-        try {
-            var canvas = document.createElement('canvas');
-            canvas.width = localVideo.videoWidth;
-            canvas.height = localVideo.videoHeight;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(localVideo, 0, 0);
+    if (!localVideo.videoWidth || !localVideo.videoHeight) {
+        console.warn('[Screenshot] 影像尚未載入（videoWidth=0）');
+        return;
+    }
 
-            canvas.toBlob(function (blob) {
-                if (blob) {
-                    var msg = isHighRes ? '📸 **手動擷取畫面 (' + localVideo.videoWidth + 'x' + localVideo.videoHeight + ')**' : '📸 **手動擷取畫面 (省電畫質)**';
-                    sendDiscordMessage(webhookUrl, msg, blob);
-                }
-            }, 'image/jpeg', 0.95);
-        } catch (e) { console.error('Capture error:', e); }
-    };
+    // Capture at current resolution directly (no risky applyConstraints)
+    try {
+        var canvas = document.createElement('canvas');
+        canvas.width = localVideo.videoWidth;
+        canvas.height = localVideo.videoHeight;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(localVideo, 0, 0);
 
-    var revertResolution = function () {
-        var isCurrentlyViewing = (currentCall !== null);
-        var newConstraints = isCurrentlyViewing
-            ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 24 } }
-            : { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } };
-
-        videoTrack.applyConstraints(newConstraints).catch(function (e) { });
-    };
-
-    // Temporarily bump resolution for the screenshot
-    videoTrack.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } })
-        .then(function () {
-            // Success! Wait for sensor adaptation
-            setTimeout(function () {
-                captureImage(true);
-                revertResolution();
-            }, 600);
-        })
-        .catch(function (e) {
-            console.error('Failed to upscale, capturing in current resolution:', e);
-            // Fallback: Just take screenshot as is!
-            captureImage(false);
-        });
+        canvas.toBlob(function (blob) {
+            if (blob) {
+                var msg = '📸 **手動擷取畫面 (' + localVideo.videoWidth + 'x' + localVideo.videoHeight + ')**';
+                sendDiscordMessage(webhookUrl, msg, blob);
+            } else {
+                console.error('[Screenshot] toBlob 產生空結果');
+            }
+        }, 'image/jpeg', 0.95);
+    } catch (e) {
+        console.error('[Screenshot] 擷取畫面錯誤:', e);
+    }
 }
 
 // Flip camera: cycle through all lenses
