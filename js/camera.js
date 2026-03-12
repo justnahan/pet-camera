@@ -57,6 +57,16 @@ setupWebhookInput('discordWebhookSys', 'webhookStatusSys', PREF_WEBHOOK_SYS);
 setupWebhookInput('discordWebhookAlert', 'webhookStatusAlert', PREF_WEBHOOK_ALERT);
 setupWebhookInput('discordWebhookPhoto', 'webhookStatusPhoto', PREF_WEBHOOK_PHOTO);
 
+// ─── Resolution Selector ───
+(function () {
+    var sel = document.getElementById('resolutionSelect');
+    if (!sel) return;
+    sel.value = localStorage.getItem('petcam_resolution') || 'auto';
+    sel.addEventListener('change', function () {
+        localStorage.setItem('petcam_resolution', this.value);
+    });
+})();
+
 // ─── Advanced Settings Accordion ───
 (function () {
     var toggle = document.getElementById('advancedToggle');
@@ -353,6 +363,61 @@ function startCamera() {
     });
 }
 
+var RES_PRESETS = {
+    '720p': { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 15 } },
+    '480p': { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }
+};
+var PREF_RESOLUTION = 'petcam_resolution';
+
+function handleCameraSuccess(stream) {
+    localStream = stream;
+    localVideo.srcObject = stream;
+
+    // Log actual resolution obtained
+    var vTrack = stream.getVideoTracks()[0];
+    if (vTrack) {
+        var s = vTrack.getSettings();
+        console.log('[Camera] 實際解析度:', s.width + 'x' + s.height + '@' + s.frameRate + 'fps');
+    }
+
+    localVideo.onloadedmetadata = function () {
+        localVideo.play();
+        if (!peer) {
+            requestWakeLock();
+            initPeer();
+        }
+        if (isGuardMode) startDetection(stream);
+    };
+    // Switch to live view
+    setupScreen.style.display = 'none';
+    liveView.style.display = 'flex';
+
+    // Hot-swap video track in active call
+    if (currentCall && currentCall.peerConnection) {
+        var newTrack = stream.getVideoTracks()[0];
+        var senders = currentCall.peerConnection.getSenders();
+        for (var i = 0; i < senders.length; i++) {
+            if (senders[i].track && senders[i].track.kind === 'video' && newTrack) {
+                senders[i].replaceTrack(newTrack);
+                break;
+            }
+        }
+    }
+}
+
+function handleCameraError(err) {
+    console.error('[Camera] 錯誤:', err);
+    setStatus('error', '無法存取攝影機');
+}
+
+function tryOpenWithRes(deviceId, resPreset) {
+    var videoConstraints = deviceId
+        ? Object.assign({ deviceId: { exact: deviceId } }, resPreset)
+        : Object.assign({ facingMode: 'environment' }, resPreset);
+
+    return navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true });
+}
+
 function openCamera(index) {
     if (localStream) {
         stopDetection();
@@ -363,42 +428,26 @@ function openCamera(index) {
     }
 
     var deviceId = cameraDevices[index] ? cameraDevices[index].deviceId : undefined;
-    var constraints = deviceId
-        ? { video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true }
-        : { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: true };
+    var resSetting = localStorage.getItem(PREF_RESOLUTION) || 'auto';
 
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(function (stream) {
-            localStream = stream;
-            localVideo.srcObject = stream;
-            localVideo.onloadedmetadata = function () {
-                localVideo.play();
-                if (!peer) {
-                    requestWakeLock();
-                    initPeer();
-                }
-                if (isGuardMode) startDetection(stream);
-            };
-            // Switch to live view
-            setupScreen.style.display = 'none';
-            liveView.style.display = 'flex';
-
-            // Hot-swap video track in active call
-            if (currentCall && currentCall.peerConnection) {
-                var newTrack = stream.getVideoTracks()[0];
-                var senders = currentCall.peerConnection.getSenders();
-                for (var i = 0; i < senders.length; i++) {
-                    if (senders[i].track && senders[i].track.kind === 'video' && newTrack) {
-                        senders[i].replaceTrack(newTrack);
-                        break;
-                    }
-                }
-            }
-        })
-        .catch(function (err) {
-            console.error('Camera error:', err);
-            setStatus('error', '無法存取攝影機');
-        });
+    if (resSetting === 'auto') {
+        // Auto mode: try 720p first, fallback to 480p
+        console.log('[Camera] 自動模式：嘗試 720p...');
+        tryOpenWithRes(deviceId, RES_PRESETS['720p'])
+            .then(handleCameraSuccess)
+            .catch(function (err) {
+                console.warn('[Camera] 720p 失敗，降級 480p:', err.message);
+                return tryOpenWithRes(deviceId, RES_PRESETS['480p'])
+                    .then(handleCameraSuccess);
+            })
+            .catch(handleCameraError);
+    } else {
+        // Fixed mode: use selected resolution directly
+        console.log('[Camera] 固定模式:', resSetting);
+        tryOpenWithRes(deviceId, RES_PRESETS[resSetting] || RES_PRESETS['480p'])
+            .then(handleCameraSuccess)
+            .catch(handleCameraError);
+    }
 }
 
 function initPeer() {

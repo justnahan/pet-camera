@@ -1,4 +1,4 @@
-const CACHE_NAME = 'petcam-v9';
+const CACHE_NAME = 'petcam-v10';
 
 self.addEventListener('install', event => {
     // Skip waiting so new SW activates immediately
